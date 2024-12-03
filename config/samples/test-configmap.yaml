@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-configmap
+  namespace: default
+data:
+  app.properties: |
+    environment=development
+    log.level=debug
+  config.json: |
+    {
+      "api": {
+        "endpoint": "https://api.example.com",
+        "timeout": 30
+      }
+    }
