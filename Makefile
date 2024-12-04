@@ -200,13 +200,13 @@ $(GOLANGCI_LINT): $(LOCALBIN)
 # $2 - package url which can be installed
 # $3 - specific version of package
 define go-install-tool
-@[ -f "$(1)-$(3)" ] || { \
-set -e; \
-package=$(2)@$(3) ;\
-echo "Downloading $${package}" ;\
-rm -f $(1) || true ;\
-GOBIN=$(LOCALBIN) go install $${package} ;\
-mv $(1) $(1)-$(3) ;\
-} ;\
-ln -sf $(1)-$(3) $(1)
+@[ -f $(1) ] || { \
+set -e ;\
+TMP_DIR=$$(mktemp -d) ;\
+cd $$TMP_DIR ;\
+go mod init tmp ;\
+echo "Downloading $(2)@$(3)" ;\
+GOBIN=$(LOCALBIN) CGO_ENABLED=0 GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) go install $(2)@$(3) ;\
+rm -rf $$TMP_DIR ;\
+}
 endef
