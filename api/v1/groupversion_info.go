@@ -17,6 +17,7 @@ limitations under the License.
 // Package v1 contains API Schema definitions for the sync v1 API group.
 // +kubebuilder:object:generate=true
 // +groupName=sync.nsync.dev
+// +kubebuilder:validation:Optional
 package v1
 
 import (
@@ -24,9 +25,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
+const (
+	// GroupName is the group name used in this package
+	GroupName = "sync.nsync.dev"
+	// Version is the API version
+	Version = "v1"
+)
+
 var (
 	// GroupVersion is group version used to register these objects.
-	GroupVersion = schema.GroupVersion{Group: "sync.nsync.dev", Version: "v1"}
+	GroupVersion = schema.GroupVersion{Group: GroupName, Version: Version}
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme.
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}

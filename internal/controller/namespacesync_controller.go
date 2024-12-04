@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,19 +30,43 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
 )
 
+var (
+	syncSuccessCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "namespacesync_sync_success_total",
+			Help: "Number of successful resource synchronizations",
+		},
+		[]string{"namespace", "resource_type"},
+	)
+
+	syncFailureCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "namespacesync_sync_failure_total",
+			Help: "Number of failed resource synchronizations",
+		},
+		[]string{"namespace", "resource_type"},
+	)
+)
+
+func init() {
+	metrics.Registry.MustRegister(syncSuccessCounter, syncFailureCounter)
+}
+
 //+kubebuilder:rbac:groups=sync.nsync.dev,resources=namespacesyncs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=sync.nsync.dev,resources=namespacesyncs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=sync.nsync.dev,resources=namespacesyncs/finalizers,verbs=update
 //+kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch
-//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 //+kubebuilder:rbac:groups="authentication.k8s.io",resources=tokenreviews,verbs=create
@@ -53,24 +78,44 @@ type NamespaceSyncReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+const finalizerName = "namespacesync.nsync.dev/finalizer"
+
 func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
-	log.Info("Starting reconciliation",
-		"controller", "NamespaceSync",
-		"namespace", req.Namespace,
-		"name", req.Name)
+	log := log.FromContext(ctx).WithValues(
+		"request_name", req.Name,
+		"request_namespace", req.Namespace,
+	)
+	log.Info("Starting reconciliation")
 
 	// Get the NamespaceSync resource
 	var namespaceSync syncv1.NamespaceSync
 	if err := r.Get(ctx, req.NamespacedName, &namespaceSync); err != nil {
 		if errors.IsNotFound(err) {
-			log.Info("NamespaceSync resource not found", "request", req)
+			log.Info("NamespaceSync resource not found. Ignoring since object must be deleted")
 			return ctrl.Result{}, nil
 		}
-		log.Error(err, "Unable to fetch NamespaceSync")
+		log.Error(err, "Failed to get NamespaceSync")
 		return ctrl.Result{}, err
 	}
-	log.Info("Processing NamespaceSync",
+
+	// Handle deletion
+	if !namespaceSync.DeletionTimestamp.IsZero() {
+		log.Info("Resource is being deleted",
+			"deletionTimestamp", namespaceSync.DeletionTimestamp)
+		return r.handleDeletion(ctx, &namespaceSync)
+	}
+
+	// Add finalizer if it doesn't exist
+	if !controllerutil.ContainsFinalizer(&namespaceSync, finalizerName) {
+		log.Info("Adding finalizer")
+		controllerutil.AddFinalizer(&namespaceSync, finalizerName)
+		if err := r.Update(ctx, &namespaceSync); err != nil {
+			log.Error(err, "Failed to add finalizer")
+			return ctrl.Result{}, err
+		}
+	}
+
+	log.Info("Found NamespaceSync resource",
 		"sourceNamespace", namespaceSync.Spec.SourceNamespace,
 		"secretName", namespaceSync.Spec.SecretName,
 		"configMapName", namespaceSync.Spec.ConfigMapName)
@@ -84,6 +129,9 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	log.Info("Found namespaces for sync", "count", len(namespaceList.Items))
 
 	var syncErrors []error
+	var syncedNamespaces []string
+	failedNamespaces := make(map[string]string)
+
 	for _, namespace := range namespaceList.Items {
 		if r.shouldSkipNamespace(namespace.Name, namespaceSync.Spec.SourceNamespace) {
 			log.Info("Skipping system namespace",
@@ -97,15 +145,17 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			"sourceNamespace", namespaceSync.Spec.SourceNamespace)
 
 		if err := r.syncResources(ctx, &namespaceSync, namespace.Name); err != nil {
-			log.Error(err, "Failed to sync resources",
-				"namespace", namespace.Name,
-				"error", err.Error())
+			failedNamespaces[namespace.Name] = err.Error()
 			syncErrors = append(syncErrors, fmt.Errorf("namespace %s: %w", namespace.Name, err))
 		} else {
-			log.Info("Successfully synced resources",
-				"namespace", namespace.Name,
-				"sourceNamespace", namespaceSync.Spec.SourceNamespace)
+			syncedNamespaces = append(syncedNamespaces, namespace.Name)
 		}
+	}
+
+	// Update status
+	if err := r.updateStatus(ctx, &namespaceSync, syncedNamespaces, failedNamespaces); err != nil {
+		log.Error(err, "Failed to update status")
+		return ctrl.Result{RequeueAfter: time.Second * 10}, err
 	}
 
 	if len(syncErrors) > 0 {
@@ -118,6 +168,29 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	log.Info("Reconciliation completed successfully",
 		"nextReconciliation", time.Now().Add(time.Minute))
 	return ctrl.Result{RequeueAfter: time.Minute}, nil
+}
+
+func (r *NamespaceSyncReconciler) handleDeletion(ctx context.Context, ns *syncv1.NamespaceSync) (ctrl.Result, error) {
+	log := log.FromContext(ctx)
+	log.Info("Handling deletion",
+		"namespace", ns.Namespace,
+		"name", ns.Name)
+
+	if controllerutil.ContainsFinalizer(ns, finalizerName) {
+		log.Info("Removing finalizer")
+
+		// Perform cleanup logic here if needed
+
+		// Remove finalizer
+		controllerutil.RemoveFinalizer(ns, finalizerName)
+		if err := r.Update(ctx, ns); err != nil {
+			log.Error(err, "Failed to remove finalizer")
+			return ctrl.Result{}, err
+		}
+		log.Info("Successfully removed finalizer")
+	}
+
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -345,12 +418,11 @@ func (r *NamespaceSyncReconciler) syncSecret(ctx context.Context, namespaceSync 
 		return nil
 	}
 	if err != nil {
-		log.Error(err, "Failed to create Secret",
-			"namespace", targetNamespace,
-			"name", secret.Name)
+		syncFailureCounter.WithLabelValues(targetNamespace, "secret").Inc()
 		return err
 	}
 
+	syncSuccessCounter.WithLabelValues(targetNamespace, "secret").Inc()
 	log.Info("Successfully created Secret",
 		"namespace", targetNamespace,
 		"name", secret.Name,
@@ -445,12 +517,11 @@ func (r *NamespaceSyncReconciler) syncConfigMap(ctx context.Context, namespaceSy
 		return nil
 	}
 	if err != nil {
-		log.Error(err, "Failed to create ConfigMap",
-			"namespace", targetNamespace,
-			"name", configMap.Name)
+		syncFailureCounter.WithLabelValues(targetNamespace, "configmap").Inc()
 		return err
 	}
 
+	syncSuccessCounter.WithLabelValues(targetNamespace, "configmap").Inc()
 	log.Info("Successfully created ConfigMap",
 		"namespace", targetNamespace,
 		"name", configMap.Name)
@@ -475,7 +546,7 @@ func (r *NamespaceSyncReconciler) copyLabelsAndAnnotations(src, dst *metav1.Obje
 		dst.Annotations = make(map[string]string)
 	}
 
-	// 소스에서 메타데이터 복사
+	// 소스에서 메타데이터 사
 	for k, v := range src.Labels {
 		if !strings.HasPrefix(k, "kubernetes.io/") {
 			dst.Labels[k] = v
@@ -491,4 +562,24 @@ func (r *NamespaceSyncReconciler) copyLabelsAndAnnotations(src, dst *metav1.Obje
 	dst.Annotations["namespacesync.nsync.dev/source-namespace"] = src.Namespace
 	dst.Annotations["namespacesync.nsync.dev/source-name"] = src.Name
 	dst.Annotations["namespacesync.nsync.dev/last-sync"] = time.Now().Format(time.RFC3339)
+}
+
+// updateStatus updates the status of the NamespaceSync resource
+func (r *NamespaceSyncReconciler) updateStatus(ctx context.Context, namespaceSync *syncv1.NamespaceSync, syncedNamespaces []string, failedNamespaces map[string]string) error {
+	log := log.FromContext(ctx)
+
+	// Create a deep copy to avoid modifying the cache
+	namespaceSyncCopy := namespaceSync.DeepCopy()
+
+	// Update status fields
+	namespaceSyncCopy.Status.LastSyncTime = metav1.NewTime(time.Now())
+	namespaceSyncCopy.Status.SyncedNamespaces = syncedNamespaces
+	namespaceSyncCopy.Status.FailedNamespaces = failedNamespaces
+
+	if err := r.Status().Update(ctx, namespaceSyncCopy); err != nil {
+		log.Error(err, "Failed to update NamespaceSync status")
+		return err
+	}
+
+	return nil
 }
