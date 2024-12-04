@@ -22,12 +22,14 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
+	"go.uber.org/zap/zapcore"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -49,11 +51,29 @@ var cancel context.CancelFunc
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
 
+	opts := zap.Options{
+		Development: true,
+		Level:       zapcore.DebugLevel,
+	}
+	logf.SetLogger(zap.New(
+		zap.WriteTo(GinkgoWriter),
+		zap.UseDevMode(true),
+		zap.Level(opts.Level),
+	))
+
 	RunSpecs(t, "Controller Suite")
 }
 
 var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	opts := zap.Options{
+		Development: true,
+		Level:       zapcore.DebugLevel,
+	}
+	logf.SetLogger(zap.New(
+		zap.WriteTo(GinkgoWriter),
+		zap.UseDevMode(true),
+		zap.Level(opts.Level),
+	))
 
 	ctx, cancel = context.WithCancel(context.TODO())
 
@@ -86,10 +106,49 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
+	// 컨트롤러 매니저 설정
+	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme: scheme.Scheme,
+	})
+	Expect(err).ToNot(HaveOccurred())
+
+	// 컨트롤러 설정
+	err = (&NamespaceSyncReconciler{
+		Client: k8sManager.GetClient(),
+		Scheme: k8sManager.GetScheme(),
+	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	// 매니저 시작
+	go func() {
+		defer GinkgoRecover()
+		err = k8sManager.Start(ctx)
+		Expect(err).ToNot(HaveOccurred())
+	}()
 })
 
-var _ = AfterSuite(func() {
+var _ = AfterSuite(func(ctx SpecContext) {
 	By("tearing down the test environment")
-	err := testEnv.Stop()
-	Expect(err).ToNot(HaveOccurred())
-}, 60)
+	cancel()
+
+	// 컨텍스트 타임아웃 설정
+	cleanupCtx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	// goroutine으로 testEnv.Stop() 실행
+	done := make(chan error)
+	go func() {
+		done <- testEnv.Stop()
+		close(done)
+	}()
+
+	// 타임아웃 또는 완료 대기
+	select {
+	case err := <-done:
+		if err != nil {
+			By(fmt.Sprintf("got an error during cleanup: %v", err))
+		}
+	case <-cleanupCtx.Done():
+		By("cleanup timed out, forcing exit")
+	}
+}, NodeTimeout(time.Minute))
