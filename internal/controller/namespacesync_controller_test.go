@@ -23,11 +23,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes/scheme"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
 )
@@ -36,23 +34,30 @@ var _ = Describe("NamespaceSync Controller", func() {
 	Context("When creating a NamespaceSync resource", func() {
 		It("should sync Secret and ConfigMap to new namespaces", func() {
 			ctx := context.Background()
+			log := logf.FromContext(ctx)
 
-			// Create default namespace if it doesn't exist
-			defaultNs := &corev1.Namespace{
+			By("Creating test namespaces")
+			log.Info("Creating source namespace")
+			sourceNs := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "default",
+					Name: "source-ns",
 				},
 			}
-			err := k8sClient.Create(ctx, defaultNs)
-			if err != nil && !errors.IsAlreadyExists(err) {
-				Expect(err).NotTo(HaveOccurred())
-			}
+			Expect(k8sClient.Create(ctx, sourceNs)).To(Succeed())
+			log.Info("Source namespace created", "name", sourceNs.Name)
 
-			// Create source Secret
+			targetNs := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "target-ns",
+				},
+			}
+			Expect(k8sClient.Create(ctx, targetNs)).To(Succeed())
+
+			By("Creating source Secret")
 			sourceSecret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-secret",
-					Namespace: "default",
+					Namespace: "source-ns",
 				},
 				Type: corev1.SecretTypeOpaque,
 				Data: map[string][]byte{
@@ -61,11 +66,11 @@ var _ = Describe("NamespaceSync Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, sourceSecret)).To(Succeed())
 
-			// Create source ConfigMap
+			By("Creating source ConfigMap")
 			sourceConfigMap := &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-configmap",
-					Namespace: "default",
+					Namespace: "source-ns",
 				},
 				Data: map[string]string{
 					"test-key": "test-value",
@@ -73,68 +78,71 @@ var _ = Describe("NamespaceSync Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, sourceConfigMap)).To(Succeed())
 
-			// Create a new namespace
-			newNamespace := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-namespace",
-				},
-			}
-			Expect(k8sClient.Create(ctx, newNamespace)).To(Succeed())
-
-			// Start the controller
-			k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
-				Scheme: scheme.Scheme,
-			})
-			Expect(err).ToNot(HaveOccurred())
-
-			controller := &NamespaceSyncReconciler{
-				Client: k8sManager.GetClient(),
-				Scheme: k8sManager.GetScheme(),
-			}
-			Expect(controller.SetupWithManager(k8sManager)).To(Succeed())
-
-			go func() {
-				err = k8sManager.Start(ctx)
-				Expect(err).ToNot(HaveOccurred())
-			}()
-
-			// Create a NamespaceSync resource
+			By("Creating NamespaceSync resource")
 			namespaceSync := &syncv1.NamespaceSync{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-sync",
-					Namespace: "default",
+					Namespace: "source-ns",
 				},
 				Spec: syncv1.NamespaceSyncSpec{
-					SourceNamespace: "default",
+					SourceNamespace: "source-ns",
 					SecretName:      "test-secret",
 					ConfigMapName:   "test-configmap",
 				},
 			}
 			Expect(k8sClient.Create(ctx, namespaceSync)).To(Succeed())
 
-			// Check if the Secret is synced
-			var secret corev1.Secret
+			By("Verifying Secret sync")
+			var targetSecret corev1.Secret
 			Eventually(func() error {
-				return k8sClient.Get(ctx, client.ObjectKey{
-					Namespace: "test-namespace",
+				err := k8sClient.Get(ctx, client.ObjectKey{
+					Namespace: "target-ns",
 					Name:      "test-secret",
-				}, &secret)
-			}, time.Second*30, time.Second).Should(Succeed())
+				}, &targetSecret)
+				if err != nil {
+					log.Error(err, "Failed to get target secret")
+					return err
+				}
+				log.Info("Found target secret",
+					"namespace", targetSecret.Namespace,
+					"name", targetSecret.Name,
+					"data", targetSecret.Data)
+				return nil
+			}, time.Second*10, time.Second).Should(Succeed())
 
-			// Check if the ConfigMap is synced
-			var configMap corev1.ConfigMap
+			Expect(targetSecret.Data).To(Equal(sourceSecret.Data))
+
+			By("Verifying ConfigMap sync")
+			var targetConfigMap corev1.ConfigMap
 			Eventually(func() error {
 				return k8sClient.Get(ctx, client.ObjectKey{
-					Namespace: "test-namespace",
+					Namespace: "target-ns",
 					Name:      "test-configmap",
-				}, &configMap)
-			}, time.Second*30, time.Second).Should(Succeed())
+				}, &targetConfigMap)
+			}, time.Second*10, time.Second).Should(Succeed())
 
-			// Cleanup
-			Expect(k8sClient.Delete(ctx, sourceSecret)).To(Succeed())
-			Expect(k8sClient.Delete(ctx, sourceConfigMap)).To(Succeed())
+			Expect(targetConfigMap.Data).To(Equal(sourceConfigMap.Data))
+
+			By("Updating source Secret")
+			sourceSecret.Data["test-key"] = []byte("updated-value")
+			Expect(k8sClient.Update(ctx, sourceSecret)).To(Succeed())
+
+			By("Verifying Secret update sync")
+			Eventually(func() []byte {
+				err := k8sClient.Get(ctx, client.ObjectKey{
+					Namespace: "target-ns",
+					Name:      "test-secret",
+				}, &targetSecret)
+				if err != nil {
+					return nil
+				}
+				return targetSecret.Data["test-key"]
+			}, time.Second*10, time.Second).Should(Equal([]byte("updated-value")))
+
+			By("Cleaning up resources")
 			Expect(k8sClient.Delete(ctx, namespaceSync)).To(Succeed())
-			Expect(k8sClient.Delete(ctx, newNamespace)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, sourceNs)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, targetNs)).To(Succeed())
 		})
 	})
 })
