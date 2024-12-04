@@ -44,6 +44,7 @@ import (
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch
 //+kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+//+kubebuilder:rbac:groups="authentication.k8s.io",resources=tokenreviews,verbs=create
 
 // NamespaceSyncReconciler reconciles a NamespaceSync object
 type NamespaceSyncReconciler struct {
