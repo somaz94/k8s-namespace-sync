@@ -22,18 +22,29 @@ type NamespaceSyncSpec struct {
 // NamespaceSyncStatus defines the observed state of NamespaceSync
 type NamespaceSyncStatus struct {
 	// LastSyncTime is the last time the sync was performed
-	// +optional
-	LastSyncTime *metav1.Time `json:"lastSyncTime,omitempty"`
+	LastSyncTime metav1.Time `json:"lastSyncTime,omitempty"`
 
-	// SyncedNamespaces is the list of namespaces that have been synced
-	// +optional
+	// SyncedNamespaces is a list of namespaces that were successfully synced
 	SyncedNamespaces []string `json:"syncedNamespaces,omitempty"`
+
+	// FailedNamespaces maps namespace names to error messages for failed syncs
+	FailedNamespaces map[string]string `json:"failedNamespaces,omitempty"`
+
+	// Conditions represent the latest available observations of an object's state
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// ObservedGeneration represents the .metadata.generation that the condition was set based upon
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="Source",type="string",JSONPath=".spec.sourceNamespace"
 //+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
+//+kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
+//+kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 
 // NamespaceSync is the Schema for the namespacesyncs API
 type NamespaceSync struct {
