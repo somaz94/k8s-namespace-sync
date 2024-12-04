@@ -1,8 +1,12 @@
 name: Lint
 
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
+    inputs:
+      run:
+        description: 'workflow run'
+        required: true
+        default: 'true'
 
 jobs:
   lint:

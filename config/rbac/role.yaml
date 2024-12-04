@@ -69,3 +69,6 @@ rules:
   - get
   - patch
   - update
+- apiGroups: ["authentication.k8s.io"]
+  resources: ["tokenreviews"]
+  verbs: ["create"]
