@@ -1,8 +1,8 @@
 apiVersion: sync.nsync.dev/v1
 kind: NamespaceSync
 metadata:
-  name: namespacesync-sample
+  name: namespacesync-sample  
 spec:
   sourceNamespace: default
-  secretName: test-secret
   configMapName: test-configmap
+  secretName: test-secret

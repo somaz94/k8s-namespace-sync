@@ -70,10 +70,11 @@ func main() {
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 
-	// 로깅 설정
+	// 로깅 설정 수정
 	opts := zap.Options{
-		Development: true,
-		Level:       zapcore.DebugLevel,
+		Development:     true,
+		Level:           zapcore.DebugLevel,
+		StacktraceLevel: zapcore.ErrorLevel,
 		Encoder: zapcore.NewConsoleEncoder(zapcore.EncoderConfig{
 			TimeKey:        "ts",
 			LevelKey:       "level",
@@ -83,20 +84,18 @@ func main() {
 			MessageKey:     "msg",
 			StacktraceKey:  "stacktrace",
 			LineEnding:     zapcore.DefaultLineEnding,
-			EncodeLevel:    zapcore.CapitalColorLevelEncoder,
+			EncodeLevel:    zapcore.LowercaseColorLevelEncoder,
 			EncodeTime:     zapcore.ISO8601TimeEncoder,
 			EncodeDuration: zapcore.StringDurationEncoder,
 			EncodeCaller:   zapcore.ShortCallerEncoder,
 		}),
 	}
 
-	// 커맨드 라인 플래그 추가
-	flag.BoolVar(&opts.Development, "zap-devel", true,
-		"Development Mode defaults(encoder=consoleEncoder,logLevel=Debug)")
-
+	// 플래그 파싱 전에 opts.BindFlags 호출
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
+	// 로그 레벨은 파싱된 플래그에서 가져옴
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
@@ -141,28 +140,24 @@ func main() {
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		Metrics:                metricsServerOptions,
-		WebhookServer:          webhookServer,
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "47c2149c.nsync.dev",
-		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
-		// when the Manager ends. This requires the binary to immediately end when the
-		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
-		// speeds up voluntary leader transitions as the new leader don't have to wait
-		// LeaseDuration time first.
-		//
-		// In the default scaffold provided, the program ends immediately after
-		// the manager stops, so would be fine to enable this option. However,
-		// if you are doing or is intended to do any operation such as perform cleanups
-		// after the manager stops then its usage might be unsafe.
-		// LeaderElectionReleaseOnCancel: true,
+		Scheme:                        scheme,
+		Metrics:                       metricsServerOptions,
+		WebhookServer:                 webhookServer,
+		HealthProbeBindAddress:        probeAddr,
+		LeaderElection:                enableLeaderElection,
+		LeaderElectionID:              "47c2149c.nsync.dev",
+		LeaderElectionNamespace:       "k8s-namespace-sync-system",
+		LeaderElectionReleaseOnCancel: true,
+		Logger:                        ctrl.Log.WithName("manager"),
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
+
+	setupLog.Info("creating controller",
+		"controller", "NamespaceSync",
+		"scheme", scheme.Name())
 
 	if err = (&controller.NamespaceSyncReconciler{
 		Client: mgr.GetClient(),
@@ -171,7 +166,9 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "NamespaceSync")
 		os.Exit(1)
 	}
-	// +kubebuilder:scaffold:builder
+
+	setupLog.Info("controller created successfully",
+		"controller", "NamespaceSync")
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")

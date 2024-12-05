@@ -61,7 +61,7 @@ spec:
       - command:
         - /manager
         args:
-          - --leader-elect
+          - --leader-elect=true
           - --health-probe-bind-address=:8081
           - --metrics-bind-address=:8443
           - --zap-devel=true
