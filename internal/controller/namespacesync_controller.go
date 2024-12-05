@@ -23,20 +23,22 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
 )
 
 var (
@@ -83,7 +85,7 @@ const finalizerName = "namespacesync.nsync.dev/finalizer"
 
 func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
-	log.Info("Reconcile function called",
+	log.Info("=== Reconcile function called ===",
 		"request_name", req.Name,
 		"request_namespace", req.Namespace)
 
@@ -96,6 +98,29 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 		log.Error(err, "Failed to get NamespaceSync")
 		return ctrl.Result{}, err
+	}
+
+	// 삭제 처리 로직
+	if namespaceSync.DeletionTimestamp != nil {
+		log.Info("Resource is being deleted, starting cleanup process")
+
+		if controllerutil.ContainsFinalizer(&namespaceSync, finalizerName) {
+			// 리소스 정리
+			if err := r.cleanupSyncedResources(ctx, &namespaceSync); err != nil {
+				log.Error(err, "Failed to cleanup synced resources")
+				return ctrl.Result{RequeueAfter: time.Second * 5}, err
+			}
+
+			// 파이널라이저 제거
+			log.Info("Removing finalizer after successful cleanup")
+			controllerutil.RemoveFinalizer(&namespaceSync, finalizerName)
+			if err := r.Update(ctx, &namespaceSync); err != nil {
+				log.Error(err, "Failed to remove finalizer")
+				return ctrl.Result{RequeueAfter: time.Second * 5}, err
+			}
+			log.Info("Successfully removed finalizer")
+		}
+		return ctrl.Result{}, nil
 	}
 
 	log.Info("Successfully retrieved NamespaceSync resource",
@@ -158,20 +183,6 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			log.Error(err, "Failed to add finalizer")
 			return ctrl.Result{}, err
 		}
-	} else if namespaceSync.DeletionTimestamp != nil {
-		// 리소스가 삭제될 때 정리 작업 수행
-		if err := r.cleanupSyncedResources(ctx, &namespaceSync); err != nil {
-			log.Error(err, "Failed to cleanup synced resources")
-			return ctrl.Result{}, err
-		}
-
-		controllerutil.RemoveFinalizer(&namespaceSync, finalizerName)
-		if err := r.Update(ctx, &namespaceSync); err != nil {
-			log.Error(err, "Failed to remove finalizer")
-			return ctrl.Result{}, err
-		}
-
-		return ctrl.Result{}, nil
 	}
 
 	return ctrl.Result{RequeueAfter: time.Second * 30}, nil
@@ -218,6 +229,24 @@ func (r *NamespaceSyncReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&syncv1.NamespaceSync{}).
+		WithEventFilter(predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool {
+				logger.Info("Create event detected", "name", e.Object.GetName())
+				return true
+			},
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				logger.Info("Update event detected", "name", e.ObjectNew.GetName())
+				return true
+			},
+			DeleteFunc: func(e event.DeleteEvent) bool {
+				logger.Info("Delete event detected", "name", e.Object.GetName())
+				return true
+			},
+			GenericFunc: func(e event.GenericEvent) bool {
+				logger.Info("Generic event detected", "name", e.Object.GetName())
+				return true
+			},
+		}).
 		// 네임스페이스 변경 감시
 		Watches(&corev1.Namespace{}, handler.EnqueueRequestsFromMapFunc(r.findNamespaceSyncs)).
 		// Secret 변경 감시 추가
@@ -286,6 +315,25 @@ func (r *NamespaceSyncReconciler) updateStatus(ctx context.Context, namespaceSyn
 	namespaceSyncCopy.Status.LastSyncTime = metav1.NewTime(time.Now())
 	namespaceSyncCopy.Status.SyncedNamespaces = syncedNamespaces
 	namespaceSyncCopy.Status.FailedNamespaces = failedNamespaces
+	namespaceSyncCopy.Status.ObservedGeneration = namespaceSync.Generation
+
+	// Update Ready condition
+	readyCondition := metav1.Condition{
+		Type:               "Ready",
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: namespaceSync.Generation,
+		LastTransitionTime: metav1.NewTime(time.Now()),
+		Reason:             "SyncComplete",
+		Message:            fmt.Sprintf("Successfully synced to %d namespaces", len(syncedNamespaces)),
+	}
+
+	if len(failedNamespaces) > 0 {
+		readyCondition.Status = metav1.ConditionFalse
+		readyCondition.Reason = "SyncFailed"
+		readyCondition.Message = fmt.Sprintf("Failed to sync to %d namespaces", len(failedNamespaces))
+	}
+
+	meta.SetStatusCondition(&namespaceSyncCopy.Status.Conditions, readyCondition)
 
 	if err := r.Status().Update(ctx, namespaceSyncCopy); err != nil {
 		log.Error(err, "Failed to update NamespaceSync status")
@@ -588,13 +636,16 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncs(ctx context.Context, obj cl
 // 리소스 정리를 위한 헬퍼 함수
 func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, namespaceSync *syncv1.NamespaceSync) error {
 	log := log.FromContext(ctx)
+	log.Info("Starting cleanup of synced resources")
 
 	// 모든 네임스페이스 목록 가져오기
 	var namespaceList corev1.NamespaceList
 	if err := r.List(ctx, &namespaceList); err != nil {
+		log.Error(err, "Failed to list namespaces during cleanup")
 		return err
 	}
 
+	var errs []error
 	for _, ns := range namespaceList.Items {
 		if r.shouldSkipNamespace(ns.Name, namespaceSync.Spec.SourceNamespace) {
 			continue
@@ -612,6 +663,11 @@ func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, na
 				log.Error(err, "Failed to delete synced Secret",
 					"namespace", ns.Name,
 					"name", namespaceSync.Spec.SecretName)
+				errs = append(errs, err)
+			} else {
+				log.Info("Successfully deleted Secret",
+					"namespace", ns.Name,
+					"name", namespaceSync.Spec.SecretName)
 			}
 		}
 
@@ -627,9 +683,19 @@ func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, na
 				log.Error(err, "Failed to delete synced ConfigMap",
 					"namespace", ns.Name,
 					"name", namespaceSync.Spec.ConfigMapName)
+				errs = append(errs, err)
+			} else {
+				log.Info("Successfully deleted ConfigMap",
+					"namespace", ns.Name,
+					"name", namespaceSync.Spec.ConfigMapName)
 			}
 		}
 	}
 
+	log.Info("Completed cleanup of synced resources")
+
+	if len(errs) > 0 {
+		return fmt.Errorf("encountered errors during cleanup: %v", errs)
+	}
 	return nil
 }
