@@ -9,6 +9,7 @@ K8s Namespace Sync is a Kubernetes controller that automatically synchronizes Se
 - Automatic synchronization of Secrets and ConfigMaps across namespaces
 - Automatic detection and synchronization of changes in source namespace
 - Automatic exclusion of system namespaces (kube-system, kube-public, etc.)
+- Support for manually excluding specific namespaces
 - Prometheus metrics support
 - Synchronization status monitoring
 
@@ -44,8 +45,43 @@ data:
 
 2. Create a NamespaceSync CR:
 
+Basic synchronization:
+
+```yaml
+apiVersion: sync.nsync.dev/v1
+kind: NamespaceSync
+metadata:
+  name: namespacesync-sample
+spec:
+  sourceNamespace: default
+  configMapName: test-configmap
+  secretName: test-secret
+```
+
+Basic apply the CR:
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync.yaml
+```
+
+With excluded namespaces:
+
+```yaml
+apiVersion: sync.nsync.dev/v1
+kind: NamespaceSync
+metadata:
+  name: namespacesync-sample-with-exclude
+spec:
+  sourceNamespace: default
+  configMapName: test-configmap
+  secretName: test-secret
+  exclude:
+    - test-ns2
+    - test-ns3
+```
+
+Exclude apply the CR:
+```bash
+kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_with_exclude.yaml
 ```
 
 ## Verification
@@ -71,6 +107,8 @@ The following namespaces are automatically excluded from synchronization:
 - kube-node-lease
 - k8s-namespace-sync-system
 
+Additionally, you can manually exclude specific namespaces using the `exclude` field in the NamespaceSync CR.
+
 ## Metrics
 
 The following Prometheus metrics are available:
@@ -83,12 +121,12 @@ The following Prometheus metrics are available:
 
 ```bash
 kubectl delete namespacesync namespacesync-sample
+kubectl delete namespacesync namespacesync-sample-with-exclude
 ```
 
 2. Remove the controller:
 
 ```bash
-kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync.yaml
 kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/install.yaml
 ```
 
