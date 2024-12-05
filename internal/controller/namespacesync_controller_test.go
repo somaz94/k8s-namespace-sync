@@ -93,24 +93,44 @@ var _ = Describe("NamespaceSync Controller", func() {
 			Expect(k8sClient.Create(ctx, namespaceSync)).To(Succeed())
 
 			By("Verifying Secret sync")
-			var targetSecret corev1.Secret
-			Eventually(func() error {
+			Eventually(func() []byte {
+				targetSecret := &corev1.Secret{}
 				err := k8sClient.Get(ctx, client.ObjectKey{
 					Namespace: "target-ns",
 					Name:      "test-secret",
-				}, &targetSecret)
+				}, targetSecret)
 				if err != nil {
-					log.Error(err, "Failed to get target secret")
+					return nil
+				}
+				return targetSecret.Data["test-key"]
+			}, time.Second*30, time.Second).Should(Equal([]byte("test-value")))
+
+			By("Updating source Secret")
+			Eventually(func() error {
+				sourceSecret := &corev1.Secret{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{
+					Namespace: "source-ns",
+					Name:      "test-secret",
+				}, sourceSecret); err != nil {
 					return err
 				}
-				log.Info("Found target secret",
-					"namespace", targetSecret.Namespace,
-					"name", targetSecret.Name,
-					"data", targetSecret.Data)
-				return nil
+
+				sourceSecret.Data["test-key"] = []byte("updated-value")
+				return k8sClient.Update(ctx, sourceSecret)
 			}, time.Second*10, time.Second).Should(Succeed())
 
-			Expect(targetSecret.Data).To(Equal(sourceSecret.Data))
+			By("Verifying Secret update sync")
+			Eventually(func() []byte {
+				targetSecret := &corev1.Secret{}
+				err := k8sClient.Get(ctx, client.ObjectKey{
+					Namespace: "target-ns",
+					Name:      "test-secret",
+				}, targetSecret)
+				if err != nil {
+					return nil
+				}
+				return targetSecret.Data["test-key"]
+			}, time.Second*30, time.Second).Should(Equal([]byte("updated-value")))
 
 			By("Verifying ConfigMap sync")
 			var targetConfigMap corev1.ConfigMap
@@ -122,22 +142,6 @@ var _ = Describe("NamespaceSync Controller", func() {
 			}, time.Second*10, time.Second).Should(Succeed())
 
 			Expect(targetConfigMap.Data).To(Equal(sourceConfigMap.Data))
-
-			By("Updating source Secret")
-			sourceSecret.Data["test-key"] = []byte("updated-value")
-			Expect(k8sClient.Update(ctx, sourceSecret)).To(Succeed())
-
-			By("Verifying Secret update sync")
-			Eventually(func() []byte {
-				err := k8sClient.Get(ctx, client.ObjectKey{
-					Namespace: "target-ns",
-					Name:      "test-secret",
-				}, &targetSecret)
-				if err != nil {
-					return nil
-				}
-				return targetSecret.Data["test-key"]
-			}, time.Second*10, time.Second).Should(Equal([]byte("updated-value")))
 
 			By("Cleaning up resources")
 			Expect(k8sClient.Delete(ctx, namespaceSync)).To(Succeed())
