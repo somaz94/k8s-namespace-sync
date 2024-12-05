@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -143,10 +144,47 @@ var _ = Describe("NamespaceSync Controller", func() {
 
 			Expect(targetConfigMap.Data).To(Equal(sourceConfigMap.Data))
 
+			By("Creating excluded namespace")
+			excludedNs := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "excluded-ns",
+				},
+			}
+			Expect(k8sClient.Create(ctx, excludedNs)).To(Succeed())
+
+			By("Updating NamespaceSync with excluded namespace")
+			Eventually(func() error {
+				if err := k8sClient.Get(ctx, client.ObjectKey{
+					Namespace: "source-ns",
+					Name:      "test-sync",
+				}, namespaceSync); err != nil {
+					return err
+				}
+				namespaceSync.Spec.Exclude = []string{"excluded-ns"}
+				return k8sClient.Update(ctx, namespaceSync)
+			}, time.Second*10, time.Second).Should(Succeed())
+
+			By("Verifying resources are not synced to excluded namespace")
+			var err error
+			excludedSecret := &corev1.Secret{}
+			err = k8sClient.Get(ctx, client.ObjectKey{
+				Namespace: "excluded-ns",
+				Name:      "test-secret",
+			}, excludedSecret)
+			Expect(errors.IsNotFound(err)).To(BeTrue(), "Secret should not exist in excluded namespace")
+
+			excludedConfigMap := &corev1.ConfigMap{}
+			err = k8sClient.Get(ctx, client.ObjectKey{
+				Namespace: "excluded-ns",
+				Name:      "test-configmap",
+			}, excludedConfigMap)
+			Expect(errors.IsNotFound(err)).To(BeTrue(), "ConfigMap should not exist in excluded namespace")
+
 			By("Cleaning up resources")
 			Expect(k8sClient.Delete(ctx, namespaceSync)).To(Succeed())
 			Expect(k8sClient.Delete(ctx, sourceNs)).To(Succeed())
 			Expect(k8sClient.Delete(ctx, targetNs)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, excludedNs)).To(Succeed())
 		})
 	})
 })

@@ -140,7 +140,7 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// 각 네임스페이스에 대해 동기화 수행
 	for _, ns := range namespaceList.Items {
-		if r.shouldSkipNamespace(ns.Name, namespaceSync.Spec.SourceNamespace) {
+		if r.shouldSkipNamespace(ns.Name, namespaceSync.Spec.SourceNamespace, namespaceSync.Spec.Exclude) {
 			continue
 		}
 
@@ -189,7 +189,7 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 }
 
 // shouldSkipNamespace checks if the namespace should be skipped for synchronization
-func (r *NamespaceSyncReconciler) shouldSkipNamespace(namespace, sourceNamespace string) bool {
+func (r *NamespaceSyncReconciler) shouldSkipNamespace(namespace, sourceNamespace string, excludeNamespaces []string) bool {
 	// Skip if it's the source namespace
 	if namespace == sourceNamespace {
 		return true
@@ -198,6 +198,13 @@ func (r *NamespaceSyncReconciler) shouldSkipNamespace(namespace, sourceNamespace
 	// Skip if it's a system namespace
 	if r.isSystemNamespace(namespace) {
 		return true
+	}
+
+	// Skip if it's in the exclude list
+	for _, excludeNs := range excludeNamespaces {
+		if namespace == excludeNs {
+			return true
+		}
 	}
 
 	return false
@@ -617,7 +624,7 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncs(ctx context.Context, obj cl
 		}
 
 		// 2. 대상 네임스페이스가 생성/수정된 경우
-		if !r.shouldSkipNamespace(namespace.Name, ns.Spec.SourceNamespace) {
+		if !r.shouldSkipNamespace(namespace.Name, ns.Spec.SourceNamespace, ns.Spec.Exclude) {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: types.NamespacedName{
 					Name:      ns.Name,
@@ -647,7 +654,7 @@ func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, na
 
 	var errs []error
 	for _, ns := range namespaceList.Items {
-		if r.shouldSkipNamespace(ns.Name, namespaceSync.Spec.SourceNamespace) {
+		if r.shouldSkipNamespace(ns.Name, namespaceSync.Spec.SourceNamespace, namespaceSync.Spec.Exclude) {
 			continue
 		}
 
