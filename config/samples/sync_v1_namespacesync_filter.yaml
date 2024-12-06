@@ -1,0 +1,29 @@
+apiVersion: sync.nsync.dev/v1
+kind: NamespaceSync
+metadata:
+  name: namespacesync-filter-sample
+  finalizers:
+    - namespacesync.nsync.dev/finalizer
+spec:
+  sourceNamespace: default
+  configMapName:
+    - test-configmap
+    - test-configmap2
+  secretName:
+    - test-secret
+    - test-secret2
+  resourceFilters:
+    configMaps:
+      # include:
+      #   - "test-configmap*"    # All ConfigMaps starting with test-configmap
+      exclude:
+        - "*2"            # Exclude ConfigMaps ending with 2
+    secrets:
+      # include:
+      #   - "test-secret*"   # All Secrets starting with test-secret
+      exclude:
+        - "*2"            # Exclude Secrets ending with 2
+  exclude:
+    - test-ns2
+    - test-ns3
+

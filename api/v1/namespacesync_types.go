@@ -24,6 +24,10 @@ type NamespaceSyncSpec struct {
 	// Exclude is the list of namespaces to exclude from sync
 	// +optional
 	Exclude []string `json:"exclude,omitempty"`
+
+	// ResourceFilters defines filters for different resource types
+	// +optional
+	ResourceFilters *ResourceFilters `json:"resourceFilters,omitempty"`
 }
 
 // NamespaceSyncStatus defines the observed state of NamespaceSync
@@ -44,6 +48,26 @@ type NamespaceSyncStatus struct {
 	// ObservedGeneration represents the .metadata.generation that the condition was set based upon
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+}
+
+// ResourceFilter defines include/exclude patterns for resources
+type ResourceFilter struct {
+	// Include patterns for resources (if empty, all resources are included)
+	// +optional
+	Include []string `json:"include,omitempty"`
+	// Exclude patterns for resources
+	// +optional
+	Exclude []string `json:"exclude,omitempty"`
+}
+
+// ResourceFilters defines filters for different resource types
+type ResourceFilters struct {
+	// Secrets defines filters for secrets
+	// +optional
+	Secrets *ResourceFilter `json:"secrets,omitempty"`
+	// ConfigMaps defines filters for configmaps
+	// +optional
+	ConfigMaps *ResourceFilter `json:"configMaps,omitempty"`
 }
 
 //+kubebuilder:object:root=true
