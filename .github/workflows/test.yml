@@ -2,7 +2,25 @@ name: Tests
 
 on:
   push:
+    paths:
+      - '**.go'                           # Go 소스 파일
+      - 'go.mod'                          # Go 모듈 파일
+      - 'go.sum'                          # Go 모듈 해시
+      - 'Makefile'                        # Makefile
+      - '.github/workflows/test.yml'  # 워크플로우 파일 자체
+      - 'config/**'                       # Kubernetes 설정 파일
+      - 'test/e2e/**'                     # E2E 테스트 파일
+      - 'internal/**'                     # 내부 파일
   pull_request:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Makefile'
+      - '.github/workflows/test.yml'
+      - 'config/**'
+      - 'test/e2e/**'
+      - 'internal/**'                     
 
 jobs:
   test:
