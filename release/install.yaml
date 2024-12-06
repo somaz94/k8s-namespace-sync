@@ -70,6 +70,41 @@ spec:
                 items:
                   type: string
                 type: array
+              resourceFilters:
+                description: ResourceFilters defines filters for different resource
+                  types
+                properties:
+                  configMaps:
+                    description: ConfigMaps defines filters for configmaps
+                    properties:
+                      exclude:
+                        description: Exclude patterns for resources
+                        items:
+                          type: string
+                        type: array
+                      include:
+                        description: Include patterns for resources (if empty, all
+                          resources are included)
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  secrets:
+                    description: Secrets defines filters for secrets
+                    properties:
+                      exclude:
+                        description: Exclude patterns for resources
+                        items:
+                          type: string
+                        type: array
+                      include:
+                        description: Include patterns for resources (if empty, all
+                          resources are included)
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                type: object
               secretName:
                 description: SecretName is the name of the Secret to sync
                 items:
@@ -482,7 +517,7 @@ spec:
         - --zap-stacktrace-level=error
         command:
         - /manager
-        image: somaz940/k8s-namespace-sync:v0.1.3
+        image: somaz940/k8s-namespace-sync:v0.1.4
         livenessProbe:
           httpGet:
             path: /healthz
