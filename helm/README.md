@@ -11,7 +11,7 @@ This Helm chart installs K8s Namespace Sync Controller on your Kubernetes cluste
 
 Add the Helm repository:
 ```bash
-helm repo add k8s-namespace-sync https://somaz94.github.io/k8s-namespace-sync
+helm repo add k8s-namespace-sync https://somaz94.github.io/k8s-namespace-sync/helm-repo
 helm repo update
 ```
 
