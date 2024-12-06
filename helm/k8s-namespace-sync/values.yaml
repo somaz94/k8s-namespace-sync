@@ -1,0 +1,90 @@
+# Default values for k8s-namespace-sync.
+nameOverride: ""
+fullnameOverride: ""
+
+# Namespace where the controller will be installed
+namespace: k8s-namespace-sync-system
+
+image:
+  repository: somaz940/k8s-namespace-sync
+  pullPolicy: IfNotPresent
+  tag: "v0.1.4"
+
+imagePullSecrets: []
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: "k8s-namespace-sync-controller-manager"
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+# Controller configuration
+controller:
+  metrics:
+    bindAddress: ":8443"
+  health:
+    bindAddress: ":8081"
+  leaderElection:
+    enabled: true
+  logging:
+    development: true
+    level: "debug"
+    encoder: "console"
+    stacktraceLevel: "error"
+
+service:
+  type: ClusterIP
+  port: 8443
+
+# Probe configuration
+probes:
+  liveness:
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    port: 8081
+    path: /healthz
+  readiness:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    port: 8081
+    path: /readyz
+
+rbac:
+  create: true
+
+# CRD installation
+crds:
+  create: true
+
+# Metrics configuration
+metrics:
+  enabled: true
+  service:
+    port: 8443
+    annotations: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
