@@ -65,6 +65,8 @@ kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/ma
 
 ### 2. Create a NamespaceSync CR:
 
+- **Important Note**: Each CR should be tested individually to avoid conflicts. After testing each CR, make sure to delete it before testing the next one.
+
 Basic synchronization (sync to all namespaces):
 
 ```yaml
@@ -82,9 +84,15 @@ spec:
     - test-secret
 ```
 
-Basic apply the CR:
+Basic apply and test:
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync.yaml
+
+# Check the resources in the target namespaces
+k get namespacesyncs.sync.nsync.dev
+
+# Delete the CR after testing
+kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync.yaml
 ```
 
 With specific target namespaces:
@@ -107,9 +115,15 @@ spec:
     - test-secret
 ```
 
-Target apply the CR:
+Target apply and test:
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_target.yaml
+
+# Check the resources in the target namespaces
+k get namespacesyncs.sync.nsync.dev
+
+# Delete the CR after testing
+kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_target.yaml
 ```
 
 With excluded namespaces:
@@ -135,9 +149,15 @@ spec:
 
 ```
 
-Exclude apply the CR:
+Exclude apply and test:
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_exclude.yaml
+
+# Check the resources in the target namespaces
+k get namespacesyncs.sync.nsync.dev
+
+# Delete the CR after testing
+kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_exclude.yaml
 ```
 
 With resource filters:
@@ -173,9 +193,15 @@ spec:
     - test-ns3
 ```
 
-Filter apply the CR:
+Filter apply and test:
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_filter.yaml
+
+# Check the resources in the target namespaces
+k get namespacesyncs.sync.nsync.dev
+
+# Delete the CR after testing
+kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_filter.yaml
 ```
 
 ### Sync Behavior
@@ -242,12 +268,13 @@ Common issues and solutions:
 
 ## Cleanup
 
-1. Delete the NamespaceSync CR:
+1. Delete the ConfigMap and Secret resources:
 
 ```bash
-kubectl delete namespacesync namespacesync-sample
-kubectl delete namespacesync namespacesync-sample-targets
-kubectl delete namespacesync namespacesync-sample-exclude
+kubectl delete configmap test-configmap
+kubectl delete secret test-secret
+kubectl delete configmap test-configmap2
+kubectl delete secret test-secret2
 ```
 
 2. Remove the controller:

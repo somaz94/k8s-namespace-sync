@@ -1,7 +1,7 @@
 apiVersion: sync.nsync.dev/v1
 kind: NamespaceSync
 metadata:
-  name: namespacesync-filter-sample
+  name: namespacesync-sample-filter
   finalizers:
     - namespacesync.nsync.dev/finalizer
 spec:
