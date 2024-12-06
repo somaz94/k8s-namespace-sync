@@ -1,17 +1,17 @@
 apiVersion: sync.nsync.dev/v1
 kind: NamespaceSync
 metadata:
-  name: namespacesync-sample-with-exclude
+  name: namespacesync-sample-target
   finalizers:
     - namespacesync.nsync.dev/finalizer
 spec:
   sourceNamespace: default
+  targetNamespaces:
+    - test-ns1
+    - test-ns2
   configMapName:
     - test-configmap
     - test-configmap2
   secretName:
     - test-secret
     - test-secret2
-  exclude:
-    - test-ns2
-    - test-ns3

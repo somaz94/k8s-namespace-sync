@@ -167,7 +167,7 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// Sync to each namespace except the source and excluded ones
 	for _, ns := range namespaceList.Items {
-		if ns.Name != namespacesync.Spec.SourceNamespace && !r.shouldSkipNamespace(ns.Name, namespacesync.Spec.SourceNamespace, namespacesync.Spec.Exclude) {
+		if r.shouldSyncToNamespace(ns.Name, namespacesync) {
 			if err := r.syncResources(ctx, namespacesync, ns.Name); err != nil {
 				log.Error(err, "Failed to sync resources", "namespace", ns.Name)
 				failedNamespaces[ns.Name] = err.Error()
@@ -887,4 +887,29 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+func (r *NamespaceSyncReconciler) shouldSyncToNamespace(namespace string, namespaceSync *syncv1.NamespaceSync) bool {
+	// 시스템 네임스페이스 체크
+	if r.isSystemNamespace(namespace) {
+		return false
+	}
+
+	// 소스 네임스페이스와 동일한 경우 스킵
+	if namespace == namespaceSync.Spec.SourceNamespace {
+		return false
+	}
+
+	// 제외 목록에 있는 경우 스킵
+	if contains(namespaceSync.Spec.Exclude, namespace) {
+		return false
+	}
+
+	// targetNamespaces가 지정된 경우, 해당 목록에 있는 네임스페이스만 동기화
+	if len(namespaceSync.Spec.TargetNamespaces) > 0 {
+		return contains(namespaceSync.Spec.TargetNamespaces, namespace)
+	}
+
+	// targetNamespaces가 지정되지 않은 경우 모든 네임스페이스에 동기화
+	return true
 }

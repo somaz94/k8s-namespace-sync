@@ -9,6 +9,7 @@ K8s Namespace Sync is a Kubernetes controller that automatically synchronizes Se
 
 - Automatic synchronization of Secrets and ConfigMaps across namespaces
 - Automatic detection and synchronization of changes in source namespace
+- Support for selective namespace targeting
 - Automatic exclusion of system namespaces (kube-system, kube-public, etc.)
 - Support for manually excluding specific namespaces
 - Prometheus metrics support
@@ -60,9 +61,9 @@ kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/ma
 kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/test-configmap-secret/test-secret2.yaml
 ```
 
-###2. Create a NamespaceSync CR:
+### 2. Create a NamespaceSync CR:
 
-Basic synchronization:
+Basic synchronization (sync to all namespaces):
 
 ```yaml
 apiVersion: sync.nsync.dev/v1
@@ -82,6 +83,31 @@ spec:
 Basic apply the CR:
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync.yaml
+```
+
+With specific target namespaces:
+
+```yaml
+apiVersion: sync.nsync.dev/v1
+kind: NamespaceSync
+metadata:
+  name: namespacesync-sample-targets
+  finalizers:
+    - namespacesync.nsync.dev/finalizer
+spec:
+  sourceNamespace: default
+  targetNamespaces:  # Only sync to these namespaces
+    - production
+    - staging
+  configMapName:
+    - test-configmap
+  secretName:
+    - test-secret
+```
+
+Target apply the CR:
+```bash
+kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_with_target.yaml
 ```
 
 With excluded namespaces:
@@ -111,6 +137,17 @@ Exclude apply the CR:
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_with_exclude.yaml
 ```
+
+### Sync Behavior
+- If `targetNamespaces` is not specified, resources will be synced to all namespaces (except excluded ones)
+- If `targetNamespaces` is specified, resources will only be synced to the listed namespaces
+- System namespaces and source namespace are always excluded
+- `exclude` list takes precedence over `targetNamespaces`
+- Changes in source resources are automatically detected and synced in real-time
+- Deleting a resource from the source namespace will remove it from all synced namespaces
+- Labels and annotations from the source resources are preserved in synced resources
+- When the NamespaceSync CR is deleted, all synced resources are automatically cleaned up
+- Finalizer ensures proper cleanup of synced resources before CR deletion
 
 ## Verification
 
@@ -166,7 +203,8 @@ The following Prometheus metrics are available:
 
 ```bash
 kubectl delete namespacesync namespacesync-sample
-kubectl delete namespacesync namespacesync-sample-with-exclude
+kubectl delete namespacesync namespacesync-sample-targets
+kubectl delete namespacesync namespacesync-sample-exclude
 ```
 
 2. Remove the controller:
