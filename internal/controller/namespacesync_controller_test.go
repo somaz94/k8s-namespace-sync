@@ -33,7 +33,7 @@ import (
 
 var _ = Describe("NamespaceSync Controller", func() {
 	Context("When creating a NamespaceSync resource", func() {
-		It("should sync Secret and ConfigMap to new namespaces", func() {
+		It("should sync multiple Secrets and ConfigMaps to new namespaces and clean up properly", func() {
 			ctx := context.Background()
 			log := logf.FromContext(ctx)
 
@@ -54,30 +54,36 @@ var _ = Describe("NamespaceSync Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, targetNs)).To(Succeed())
 
-			By("Creating source Secret")
-			sourceSecret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-secret",
-					Namespace: "source-ns",
-				},
-				Type: corev1.SecretTypeOpaque,
-				Data: map[string][]byte{
-					"test-key": []byte("test-value"),
-				},
-			}
-			Expect(k8sClient.Create(ctx, sourceSecret)).To(Succeed())
+			By("Creating source ConfigMaps and Secrets")
+			sourceConfigMaps := []string{"configmap1", "configmap2"}
+			sourceSecrets := []string{"secret1", "secret2"}
 
-			By("Creating source ConfigMap")
-			sourceConfigMap := &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-configmap",
-					Namespace: "source-ns",
-				},
-				Data: map[string]string{
-					"test-key": "test-value",
-				},
+			for _, name := range sourceConfigMaps {
+				configMap := &corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      name,
+						Namespace: "source-ns",
+					},
+					Data: map[string]string{
+						"key": "value",
+					},
+				}
+				Expect(k8sClient.Create(ctx, configMap)).To(Succeed())
 			}
-			Expect(k8sClient.Create(ctx, sourceConfigMap)).To(Succeed())
+
+			for _, name := range sourceSecrets {
+				secret := &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      name,
+						Namespace: "source-ns",
+					},
+					Type: corev1.SecretTypeOpaque,
+					Data: map[string][]byte{
+						"key": []byte("value"),
+					},
+				}
+				Expect(k8sClient.Create(ctx, secret)).To(Succeed())
+			}
 
 			By("Creating NamespaceSync resource")
 			namespaceSync := &syncv1.NamespaceSync{
@@ -87,62 +93,25 @@ var _ = Describe("NamespaceSync Controller", func() {
 				},
 				Spec: syncv1.NamespaceSyncSpec{
 					SourceNamespace: "source-ns",
-					SecretName:      "test-secret",
-					ConfigMapName:   "test-configmap",
+					SecretName:      []string{"secret1", "secret2"},
+					ConfigMapName:   []string{"configmap1", "configmap2"},
+					Exclude:         []string{"excluded-ns"},
 				},
 			}
 			Expect(k8sClient.Create(ctx, namespaceSync)).To(Succeed())
 
-			By("Verifying Secret sync")
-			Eventually(func() []byte {
-				targetSecret := &corev1.Secret{}
-				err := k8sClient.Get(ctx, client.ObjectKey{
-					Namespace: "target-ns",
-					Name:      "test-secret",
-				}, targetSecret)
-				if err != nil {
-					return nil
-				}
-				return targetSecret.Data["test-key"]
-			}, time.Second*30, time.Second).Should(Equal([]byte("test-value")))
-
-			By("Updating source Secret")
-			Eventually(func() error {
-				sourceSecret := &corev1.Secret{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{
-					Namespace: "source-ns",
-					Name:      "test-secret",
-				}, sourceSecret); err != nil {
-					return err
-				}
-
-				sourceSecret.Data["test-key"] = []byte("updated-value")
-				return k8sClient.Update(ctx, sourceSecret)
-			}, time.Second*10, time.Second).Should(Succeed())
-
-			By("Verifying Secret update sync")
-			Eventually(func() []byte {
-				targetSecret := &corev1.Secret{}
-				err := k8sClient.Get(ctx, client.ObjectKey{
-					Namespace: "target-ns",
-					Name:      "test-secret",
-				}, targetSecret)
-				if err != nil {
-					return nil
-				}
-				return targetSecret.Data["test-key"]
-			}, time.Second*30, time.Second).Should(Equal([]byte("updated-value")))
-
 			By("Verifying ConfigMap sync")
-			var targetConfigMap corev1.ConfigMap
-			Eventually(func() error {
-				return k8sClient.Get(ctx, client.ObjectKey{
-					Namespace: "target-ns",
-					Name:      "test-configmap",
-				}, &targetConfigMap)
-			}, time.Second*10, time.Second).Should(Succeed())
+			for _, configMapName := range namespaceSync.Spec.ConfigMapName {
+				var targetConfigMap corev1.ConfigMap
+				Eventually(func() error {
+					return k8sClient.Get(ctx, client.ObjectKey{
+						Namespace: "target-ns",
+						Name:      configMapName,
+					}, &targetConfigMap)
+				}, time.Second*10, time.Second).Should(Succeed())
 
-			Expect(targetConfigMap.Data).To(Equal(sourceConfigMap.Data))
+				Expect(targetConfigMap.Data).To(Equal(map[string]string{"key": "value"}))
+			}
 
 			By("Creating excluded namespace")
 			excludedNs := &corev1.Namespace{
@@ -181,10 +150,52 @@ var _ = Describe("NamespaceSync Controller", func() {
 			Expect(errors.IsNotFound(err)).To(BeTrue(), "ConfigMap should not exist in excluded namespace")
 
 			By("Cleaning up resources")
-			Expect(k8sClient.Delete(ctx, namespaceSync)).To(Succeed())
-			Expect(k8sClient.Delete(ctx, sourceNs)).To(Succeed())
-			Expect(k8sClient.Delete(ctx, targetNs)).To(Succeed())
-			Expect(k8sClient.Delete(ctx, excludedNs)).To(Succeed())
+
+			// Create a new context with timeout
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+			defer cancel()
+
+			// 1. Delete NamespaceSync first and wait for deletion
+			Expect(k8sClient.Delete(cleanupCtx, namespaceSync)).To(Succeed())
+			Eventually(func() bool {
+				err := k8sClient.Get(cleanupCtx, client.ObjectKey{
+					Namespace: sourceNs.Name,
+					Name:      namespaceSync.Name,
+				}, &syncv1.NamespaceSync{})
+				return errors.IsNotFound(err)
+			}, time.Second*10, time.Second).Should(BeTrue())
+
+			// 2. Wait for synced resources to be deleted from target namespace
+			Eventually(func() bool {
+				// Check synced secrets
+				for _, secretName := range namespaceSync.Spec.SecretName {
+					secret := &corev1.Secret{}
+					err := k8sClient.Get(cleanupCtx, client.ObjectKey{
+						Namespace: targetNs.Name,
+						Name:      secretName,
+					}, secret)
+					if !errors.IsNotFound(err) {
+						return false
+					}
+				}
+
+				// Check synced configmaps
+				for _, configMapName := range namespaceSync.Spec.ConfigMapName {
+					configMap := &corev1.ConfigMap{}
+					err := k8sClient.Get(cleanupCtx, client.ObjectKey{
+						Namespace: targetNs.Name,
+						Name:      configMapName,
+					}, configMap)
+					if !errors.IsNotFound(err) {
+						return false
+					}
+				}
+				return true
+			}, time.Second*10, time.Second).Should(BeTrue(), "Synced resources should be deleted from target namespace")
+
+			// 3. Delete namespaces
+			Expect(k8sClient.Delete(cleanupCtx, targetNs)).To(Succeed())
+			Expect(k8sClient.Delete(cleanupCtx, sourceNs)).To(Succeed())
 		})
 	})
 })

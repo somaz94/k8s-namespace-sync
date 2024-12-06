@@ -54,7 +54,9 @@ spec:
             properties:
               configMapName:
                 description: ConfigMapName is the name of the configmap to be synced
-                type: string
+                items:
+                  type: string
+                type: array
               exclude:
                 description: Exclude is a list of namespaces to exclude from synchronization
                 items:
@@ -62,7 +64,9 @@ spec:
                 type: array
               secretName:
                 description: SecretName is the name of the secret to be synced
-                type: string
+                items:
+                  type: string
+                type: array
               sourceNamespace:
                 description: SourceNamespace is the namespace containing the resources
                   to be synced

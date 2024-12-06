@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -57,10 +58,31 @@ var (
 		},
 		[]string{"namespace", "resource_type"},
 	)
+
+	cleanupSuccessCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "namespacesync_cleanup_success_total",
+			Help: "Number of successful resource cleanups",
+		},
+		[]string{"namespace", "resource_type"},
+	)
+
+	cleanupFailureCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "namespacesync_cleanup_failure_total",
+			Help: "Number of failed resource cleanups",
+		},
+		[]string{"namespace", "resource_type"},
+	)
 )
 
 func init() {
-	metrics.Registry.MustRegister(syncSuccessCounter, syncFailureCounter)
+	metrics.Registry.MustRegister(
+		syncSuccessCounter,
+		syncFailureCounter,
+		cleanupSuccessCounter,
+		cleanupFailureCounter,
+	)
 }
 
 //+kubebuilder:rbac:groups=sync.nsync.dev,resources=namespacesyncs,verbs=get;list;watch;create;update;patch;delete
@@ -84,141 +106,217 @@ type NamespaceSyncReconciler struct {
 const finalizerName = "namespacesync.nsync.dev/finalizer"
 
 func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
-	log.Info("=== Reconcile function called ===",
-		"request_name", req.Name,
-		"request_namespace", req.Namespace)
+	log := log.Log.WithValues("request_name", req.Name, "request_namespace", req.Namespace)
+	log.Info("=== Reconcile function called ===")
 
-	// Get the NamespaceSync resource
-	var namespaceSync syncv1.NamespaceSync
-	if err := r.Get(ctx, req.NamespacedName, &namespaceSync); err != nil {
+	// Get NamespaceSync resource
+	namespacesync := &syncv1.NamespaceSync{}
+	err := r.Get(ctx, req.NamespacedName, namespacesync)
+	if err != nil {
 		if errors.IsNotFound(err) {
+			// 리소스가 이미 삭제됨
 			log.Info("NamespaceSync resource not found. Ignoring since object must be deleted")
 			return ctrl.Result{}, nil
 		}
-		log.Error(err, "Failed to get NamespaceSync")
+		log.Error(err, "Failed to get NamespaceSync resource")
 		return ctrl.Result{}, err
 	}
 
-	// 삭제 처리 로직
-	if namespaceSync.DeletionTimestamp != nil {
-		log.Info("Resource is being deleted, starting cleanup process")
+	// Handle deletion
+	if !namespacesync.DeletionTimestamp.IsZero() {
+		return r.handleDeletionAndStatus(ctx, namespacesync)
+	}
 
-		if controllerutil.ContainsFinalizer(&namespaceSync, finalizerName) {
-			// 리소스 정리
-			if err := r.cleanupSyncedResources(ctx, &namespaceSync); err != nil {
-				log.Error(err, "Failed to cleanup synced resources")
-				return ctrl.Result{RequeueAfter: time.Second * 5}, err
+	// Add finalizer if it doesn't exist
+	if !controllerutil.ContainsFinalizer(namespacesync, finalizerName) {
+		log.Info("Adding finalizer")
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			// Get the latest version
+			latest := &syncv1.NamespaceSync{}
+			if err := r.Get(ctx, req.NamespacedName, latest); err != nil {
+				return err
 			}
 
-			// 파이널라이저 제거
-			log.Info("Removing finalizer after successful cleanup")
-			controllerutil.RemoveFinalizer(&namespaceSync, finalizerName)
-			if err := r.Update(ctx, &namespaceSync); err != nil {
-				log.Error(err, "Failed to remove finalizer")
-				return ctrl.Result{RequeueAfter: time.Second * 5}, err
+			if !controllerutil.ContainsFinalizer(latest, finalizerName) {
+				controllerutil.AddFinalizer(latest, finalizerName)
+				return r.Update(ctx, latest)
 			}
-			log.Info("Successfully removed finalizer")
-		}
-		return ctrl.Result{}, nil
-	}
+			return nil
+		})
 
-	log.Info("Successfully retrieved NamespaceSync resource",
-		"spec", namespaceSync.Spec,
-		"status", namespaceSync.Status)
-
-	// 모든 네임스페이스 목록 가져오기
-	var namespaceList corev1.NamespaceList
-	if err := r.List(ctx, &namespaceList); err != nil {
-		log.Error(err, "Failed to list namespaces")
-		return ctrl.Result{}, err
-	}
-
-	var syncErrors []error
-	var syncedNamespaces []string
-	failedNamespaces := make(map[string]string)
-
-	// 각 네임스페이스에 대해 동기화 수행
-	for _, ns := range namespaceList.Items {
-		if r.shouldSkipNamespace(ns.Name, namespaceSync.Spec.SourceNamespace, namespaceSync.Spec.Exclude) {
-			continue
-		}
-
-		if err := r.syncResources(ctx, &namespaceSync, ns.Name); err != nil {
-			errMsg := fmt.Sprintf("failed to sync resources: %v", err)
-			failedNamespaces[ns.Name] = errMsg
-			syncErrors = append(syncErrors, fmt.Errorf("namespace %s: %w", ns.Name, err))
-			log.Error(err, "Failed to sync resources",
-				"namespace", ns.Name)
-		} else {
-			syncedNamespaces = append(syncedNamespaces, ns.Name)
-			log.Info("Successfully synced resources",
-				"namespace", ns.Name)
-		}
-	}
-
-	// Update status
-	log.Info("Updating NamespaceSync status",
-		"syncedNamespaces", syncedNamespaces,
-		"failedNamespaces", failedNamespaces)
-
-	if err := r.updateStatus(ctx, &namespaceSync, syncedNamespaces, failedNamespaces); err != nil {
-		log.Error(err, "Failed to update status")
-		return ctrl.Result{RequeueAfter: time.Second * 10}, err
-	}
-
-	log.Info("Successfully updated status")
-
-	if len(syncErrors) > 0 {
-		log.Error(fmt.Errorf("sync errors occurred"),
-			"errorCount", len(syncErrors),
-			"errors", fmt.Sprintf("%v", syncErrors))
-		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
-	}
-
-	// 파이널라이저 관련 로직
-	if !controllerutil.ContainsFinalizer(&namespaceSync, finalizerName) {
-		controllerutil.AddFinalizer(&namespaceSync, finalizerName)
-		if err := r.Update(ctx, &namespaceSync); err != nil {
+		if err != nil {
 			log.Error(err, "Failed to add finalizer")
 			return ctrl.Result{}, err
 		}
 	}
 
-	return ctrl.Result{RequeueAfter: time.Second * 30}, nil
+	// Process the sync
+	log.Info("Successfully retrieved NamespaceSync resource",
+		"spec", namespacesync.Spec,
+		"status", namespacesync.Status)
+
+	syncedNamespaces := []string{}
+	failedNamespaces := map[string]string{}
+
+	// Get list of all namespaces
+	namespaceList := &corev1.NamespaceList{}
+	if err := r.List(ctx, namespaceList); err != nil {
+		log.Error(err, "Failed to list namespaces")
+		return ctrl.Result{}, err
+	}
+
+	// Sync to each namespace except the source and excluded ones
+	for _, ns := range namespaceList.Items {
+		if ns.Name != namespacesync.Spec.SourceNamespace && !r.shouldSkipNamespace(ns.Name, namespacesync.Spec.SourceNamespace, namespacesync.Spec.Exclude) {
+			if err := r.syncResources(ctx, namespacesync, ns.Name); err != nil {
+				log.Error(err, "Failed to sync resources", "namespace", ns.Name)
+				failedNamespaces[ns.Name] = err.Error()
+				continue
+			}
+			log.Info("Successfully synced resources", "namespace", ns.Name)
+			syncedNamespaces = append(syncedNamespaces, ns.Name)
+		}
+	}
+
+	// Update status only if resource exists and is not being deleted
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Get latest version before updating status
+		latest := &syncv1.NamespaceSync{}
+		if err := r.Get(ctx, req.NamespacedName, latest); err != nil {
+			return err
+		}
+
+		// Update status fields
+		latest.Status.LastSyncTime = metav1.NewTime(time.Now())
+		latest.Status.SyncedNamespaces = syncedNamespaces
+		latest.Status.FailedNamespaces = failedNamespaces
+		latest.Status.ObservedGeneration = latest.Generation
+
+		// Update Ready condition
+		readyCondition := metav1.Condition{
+			Type:               "Ready",
+			Status:             metav1.ConditionTrue,
+			ObservedGeneration: latest.Generation,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Reason:             "SyncComplete",
+			Message:            fmt.Sprintf("Successfully synced to %d namespaces", len(syncedNamespaces)),
+		}
+
+		if len(failedNamespaces) > 0 {
+			readyCondition.Status = metav1.ConditionFalse
+			readyCondition.Reason = "SyncFailed"
+			readyCondition.Message = fmt.Sprintf("Failed to sync to %d namespaces", len(failedNamespaces))
+		}
+
+		meta.SetStatusCondition(&latest.Status.Conditions, readyCondition)
+
+		return r.Status().Update(ctx, latest)
+	}); err != nil {
+		log.Error(err, "Failed to update status")
+		return ctrl.Result{}, err
+	}
+
+	return ctrl.Result{}, nil
+}
+
+func (r *NamespaceSyncReconciler) handleDeletionAndStatus(ctx context.Context, namespacesync *syncv1.NamespaceSync) (ctrl.Result, error) {
+	log := log.FromContext(ctx)
+
+	if controllerutil.ContainsFinalizer(namespacesync, finalizerName) {
+		// 동기화된 리소스 정리
+		if err := r.cleanupSyncedResources(ctx, namespacesync); err != nil {
+			log.Error(err, "Failed to cleanup resources")
+			return ctrl.Result{}, err
+		}
+
+		// Finalizer 제거
+		controllerutil.RemoveFinalizer(namespacesync, finalizerName)
+		if err := r.Update(ctx, namespacesync); err != nil {
+			// 리소스가 이미 삭제된 경우 무시
+			if errors.IsNotFound(err) {
+				return ctrl.Result{}, nil
+			}
+			log.Error(err, "Failed to remove finalizer")
+			return ctrl.Result{}, err
+		}
+	}
+
+	return ctrl.Result{}, nil
+}
+
+func (r *NamespaceSyncReconciler) handleDeletion(ctx context.Context, namespacesync *syncv1.NamespaceSync) error {
+	log := log.Log.WithValues("resource", namespacesync.Name)
+	log.Info("Starting cleanup of synced resources")
+
+	// Get the latest version of the resource before removing finalizer
+	var latestNamespaceSync syncv1.NamespaceSync
+	if err := r.Get(ctx, types.NamespacedName{
+		Name:      namespacesync.Name,
+		Namespace: namespacesync.Namespace,
+	}, &latestNamespaceSync); err != nil {
+		if errors.IsNotFound(err) {
+			return nil // Resource is already gone
+		}
+		return fmt.Errorf("failed to get latest version: %w", err)
+	}
+
+	// Get list of all namespaces
+	namespaces := &corev1.NamespaceList{}
+	if err := r.List(ctx, namespaces); err != nil {
+		return fmt.Errorf("failed to list namespaces: %w", err)
+	}
+
+	// Clean up resources from all synced namespaces
+	for _, ns := range namespaces.Items {
+		// Skip source namespace and system namespaces
+		if ns.Name == namespacesync.Spec.SourceNamespace || r.isSystemNamespace(ns.Name) {
+			continue
+		}
+
+		// Delete all synced resources from this namespace
+		if err := r.deleteResourcesFromNamespace(ctx, namespacesync, ns.Name); err != nil {
+			log.Error(err, "Failed to cleanup resources", "namespace", ns.Name)
+			// Continue with other namespaces even if one fails
+			continue
+		}
+	}
+
+	log.Info("Cleanup completed successfully")
+
+	// Remove finalizer from the latest version
+	controllerutil.RemoveFinalizer(&latestNamespaceSync, finalizerName)
+	if err := r.Update(ctx, &latestNamespaceSync); err != nil {
+		return fmt.Errorf("failed to remove finalizer: %w", err)
+	}
+
+	return nil
+}
+
+// isSystemNamespace checks if the namespace is a system namespace
+func (r *NamespaceSyncReconciler) isSystemNamespace(namespace string) bool {
+	systemNamespaces := []string{
+		"kube-system",
+		"kube-public",
+		"kube-node-lease",
+		"default",
+	}
+	return contains(systemNamespaces, namespace)
 }
 
 // shouldSkipNamespace checks if the namespace should be skipped for synchronization
-func (r *NamespaceSyncReconciler) shouldSkipNamespace(namespace, sourceNamespace string, excludeNamespaces []string) bool {
-	// Skip if it's the source namespace
-	if namespace == sourceNamespace {
-		return true
-	}
-
-	// Skip if it's a system namespace
+func (r *NamespaceSyncReconciler) shouldSkipNamespace(namespace, sourceNamespace string, excludedNamespaces []string) bool {
+	// 시스템 네임스페이스 체크
 	if r.isSystemNamespace(namespace) {
 		return true
 	}
 
-	// Skip if it's in the exclude list
-	for _, excludeNs := range excludeNamespaces {
-		if namespace == excludeNs {
-			return true
-		}
+	// 소스 네임스페이스와 동일한 경우 스킵
+	if namespace == sourceNamespace {
+		return true
 	}
 
-	return false
-}
-
-// Helper function to check if namespace is a system namespace
-func (r *NamespaceSyncReconciler) isSystemNamespace(namespace string) bool {
-	systemNamespaces := map[string]bool{
-		"kube-system":               true,
-		"kube-public":               true,
-		"kube-node-lease":           true,
-		"k8s-namespace-sync-system": true,
-	}
-	return systemNamespaces[namespace]
+	// 제외된 네임스페이스 목록에 포함되어 있는지 체크
+	return contains(excludedNamespaces, namespace)
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -258,7 +356,7 @@ func (r *NamespaceSyncReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&corev1.Namespace{}, handler.EnqueueRequestsFromMapFunc(r.findNamespaceSyncs)).
 		// Secret 변경 감시 추가
 		Watches(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(r.findNamespaceSyncsForSecret)).
-		// ConfigMap 변경 감시 추가
+		// ConfigMap 변경 감 추가
 		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(r.findNamespaceSyncsForConfigMap)).
 		Complete(r)
 }
@@ -273,13 +371,17 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncsForSecret(ctx context.Contex
 
 	var requests []reconcile.Request
 	for _, ns := range namespaceSyncs.Items {
-		if ns.Spec.SecretName == secret.Name && ns.Spec.SourceNamespace == secret.Namespace {
-			requests = append(requests, reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Name:      ns.Name,
-					Namespace: ns.Namespace,
-				},
-			})
+		// Check if the secret name is in the SecretName list
+		for _, secretName := range ns.Spec.SecretName {
+			if secretName == secret.Name && ns.Spec.SourceNamespace == secret.Namespace {
+				requests = append(requests, reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Name:      ns.Name,
+						Namespace: ns.Namespace,
+					},
+				})
+				break
+			}
 		}
 	}
 	return requests
@@ -295,40 +397,55 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncsForConfigMap(ctx context.Con
 
 	var requests []reconcile.Request
 	for _, ns := range namespaceSyncs.Items {
-		if ns.Spec.ConfigMapName == configMap.Name && ns.Spec.SourceNamespace == configMap.Namespace {
-			requests = append(requests, reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Name:      ns.Name,
-					Namespace: ns.Namespace,
-				},
-			})
+		// Check if the configmap name is in the ConfigMapName list
+		for _, configMapName := range ns.Spec.ConfigMapName {
+			if configMapName == configMap.Name && ns.Spec.SourceNamespace == configMap.Namespace {
+				requests = append(requests, reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Name:      ns.Name,
+						Namespace: ns.Namespace,
+					},
+				})
+				break
+			}
 		}
 	}
 	return requests
 }
 
 func (r *NamespaceSyncReconciler) updateStatus(ctx context.Context, namespaceSync *syncv1.NamespaceSync, syncedNamespaces []string, failedNamespaces map[string]string) error {
-	log := log.FromContext(ctx)
-	log.Info("Updating status",
-		"resource", namespaceSync.Name,
-		"namespace", namespaceSync.Namespace,
-		"syncedCount", len(syncedNamespaces),
-		"failedCount", len(failedNamespaces))
+	log := log.Log.WithValues("resource", namespaceSync.Name, "namespace", namespaceSync.Namespace)
 
-	// Create a deep copy to avoid modifying the cache
-	namespaceSyncCopy := namespaceSync.DeepCopy()
+	// 리소스가 삭제 중인지 확인
+	if namespaceSync.DeletionTimestamp != nil {
+		log.Info("Resource is being deleted, skipping status update")
+		return nil
+	}
+
+	// Get the latest version of the resource
+	var latest syncv1.NamespaceSync
+	if err := r.Get(ctx, types.NamespacedName{
+		Name:      namespaceSync.Name,
+		Namespace: namespaceSync.Namespace,
+	}, &latest); err != nil {
+		if errors.IsNotFound(err) {
+			log.Info("Resource no longer exists, skipping status update")
+			return nil
+		}
+		return err
+	}
 
 	// Update status fields
-	namespaceSyncCopy.Status.LastSyncTime = metav1.NewTime(time.Now())
-	namespaceSyncCopy.Status.SyncedNamespaces = syncedNamespaces
-	namespaceSyncCopy.Status.FailedNamespaces = failedNamespaces
-	namespaceSyncCopy.Status.ObservedGeneration = namespaceSync.Generation
+	latest.Status.LastSyncTime = metav1.NewTime(time.Now())
+	latest.Status.SyncedNamespaces = syncedNamespaces
+	latest.Status.FailedNamespaces = failedNamespaces
+	latest.Status.ObservedGeneration = latest.Generation
 
 	// Update Ready condition
 	readyCondition := metav1.Condition{
 		Type:               "Ready",
 		Status:             metav1.ConditionTrue,
-		ObservedGeneration: namespaceSync.Generation,
+		ObservedGeneration: latest.Generation,
 		LastTransitionTime: metav1.NewTime(time.Now()),
 		Reason:             "SyncComplete",
 		Message:            fmt.Sprintf("Successfully synced to %d namespaces", len(syncedNamespaces)),
@@ -340,41 +457,22 @@ func (r *NamespaceSyncReconciler) updateStatus(ctx context.Context, namespaceSyn
 		readyCondition.Message = fmt.Sprintf("Failed to sync to %d namespaces", len(failedNamespaces))
 	}
 
-	meta.SetStatusCondition(&namespaceSyncCopy.Status.Conditions, readyCondition)
+	meta.SetStatusCondition(&latest.Status.Conditions, readyCondition)
 
-	if err := r.Status().Update(ctx, namespaceSyncCopy); err != nil {
-		log.Error(err, "Failed to update NamespaceSync status")
-		return err
-	}
-
-	log.Info("Successfully updated status",
-		"syncedNamespaces", syncedNamespaces,
-		"failedNamespaces", failedNamespaces)
-
-	return nil
-}
-
-func (r *NamespaceSyncReconciler) handleDeletion(ctx context.Context, ns *syncv1.NamespaceSync) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
-	log.Info("Handling deletion",
-		"namespace", ns.Namespace,
-		"name", ns.Name)
-
-	if controllerutil.ContainsFinalizer(ns, finalizerName) {
-		log.Info("Removing finalizer")
-
-		// Perform cleanup logic here if needed
-
-		// Remove finalizer
-		controllerutil.RemoveFinalizer(ns, finalizerName)
-		if err := r.Update(ctx, ns); err != nil {
-			log.Error(err, "Failed to remove finalizer")
-			return ctrl.Result{}, err
+	// Update the status with retries
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if err := r.Status().Update(ctx, &latest); err != nil {
+			// Get the latest version before retrying
+			if err := r.Get(ctx, types.NamespacedName{
+				Name:      latest.Name,
+				Namespace: latest.Namespace,
+			}, &latest); err != nil {
+				return err
+			}
+			return err
 		}
-		log.Info("Successfully removed finalizer")
-	}
-
-	return ctrl.Result{}, nil
+		return nil
+	})
 }
 
 func (r *NamespaceSyncReconciler) syncResources(ctx context.Context, namespaceSync *syncv1.NamespaceSync, targetNamespace string) error {
@@ -382,175 +480,63 @@ func (r *NamespaceSyncReconciler) syncResources(ctx context.Context, namespaceSy
 	log.Info("syncResources called",
 		"targetNamespace", targetNamespace,
 		"sourceNamespace", namespaceSync.Spec.SourceNamespace,
-		"secretName", namespaceSync.Spec.SecretName,
-		"configMapName", namespaceSync.Spec.ConfigMapName)
+		"secretCount", len(namespaceSync.Spec.SecretName),
+		"configMapCount", len(namespaceSync.Spec.ConfigMapName))
 
-	// Sync Secret if specified
-	if namespaceSync.Spec.SecretName != "" {
-		if err := r.syncSecret(ctx, namespaceSync.Spec.SourceNamespace, targetNamespace, namespaceSync.Spec.SecretName); err != nil {
+	// Sync Secrets
+	for _, secretName := range namespaceSync.Spec.SecretName {
+		if err := r.syncSecret(ctx, namespaceSync.Spec.SourceNamespace, targetNamespace, secretName); err != nil {
 			log.Error(err, "Failed to sync secret",
-				"secretName", namespaceSync.Spec.SecretName,
+				"secretName", secretName,
 				"targetNamespace", targetNamespace)
 			return err
 		}
 		log.Info("Successfully synced secret",
-			"secretName", namespaceSync.Spec.SecretName,
+			"secretName", secretName,
 			"targetNamespace", targetNamespace)
 	}
 
-	// Sync ConfigMap if specified
-	if namespaceSync.Spec.ConfigMapName != "" {
-		if err := r.syncConfigMap(ctx, namespaceSync, targetNamespace); err != nil {
+	// Sync ConfigMaps
+	for _, configMapName := range namespaceSync.Spec.ConfigMapName {
+		log.Info("Starting ConfigMap sync",
+			"configMap", configMapName,
+			"sourceNamespace", namespaceSync.Spec.SourceNamespace,
+			"targetNamespace", targetNamespace)
+
+		if err := r.syncConfigMap(ctx, namespaceSync, targetNamespace, configMapName); err != nil {
 			log.Error(err, "Failed to sync configmap",
-				"configMapName", namespaceSync.Spec.ConfigMapName,
+				"configMapName", configMapName,
 				"targetNamespace", targetNamespace)
 			return err
 		}
 		log.Info("Successfully synced configmap",
-			"configMapName", namespaceSync.Spec.ConfigMapName,
+			"configMapName", configMapName,
 			"targetNamespace", targetNamespace)
 	}
 
 	return nil
 }
 
-func (r *NamespaceSyncReconciler) syncSecret(ctx context.Context, sourceNamespace, targetNamespace, secretName string) error {
-	log := log.FromContext(ctx)
-
-	// Get source secret
-	var secret corev1.Secret
-	if err := r.Get(ctx, types.NamespacedName{Namespace: sourceNamespace, Name: secretName}, &secret); err != nil {
-		if errors.IsNotFound(err) {
-			log.Info("Secret not found in source namespace",
-				"secret", secretName,
-				"namespace", sourceNamespace)
-			return nil
-		}
-		log.Error(err, "Failed to get source Secret")
-		return err
-	}
-
-	log.Info("Found source Secret",
-		"name", secret.Name,
-		"namespace", secret.Namespace,
-		"type", secret.Type,
-		"labels", secret.Labels,
-		"annotations", secret.Annotations)
-
-	// Check if secret exists in target namespace
-	var existingSecret corev1.Secret
-	err := r.Get(ctx, types.NamespacedName{Namespace: targetNamespace, Name: secretName}, &existingSecret)
-	if err != nil {
-		if !errors.IsNotFound(err) {
-			log.Error(err, "Failed to get target secret")
-			return err
-		}
-		// Create new secret if it doesn't exist
-		newSecret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      secret.Name,
-				Namespace: targetNamespace,
-			},
-			Type:       secret.Type,
-			Data:       secret.Data,
-			StringData: secret.StringData,
-		}
-		r.copyLabelsAndAnnotations(&secret.ObjectMeta, &newSecret.ObjectMeta)
-
-		if err := r.Create(ctx, newSecret); err != nil {
-			log.Error(err, "Failed to create Secret")
-			return err
-		}
-		log.Info("Successfully created Secret",
-			"namespace", targetNamespace,
-			"name", secret.Name,
-			"type", newSecret.Type)
-	} else {
-		// Update existing secret
-		existingSecret.Data = secret.Data
-		existingSecret.StringData = secret.StringData
-		existingSecret.Type = secret.Type
-		r.copyLabelsAndAnnotations(&secret.ObjectMeta, &existingSecret.ObjectMeta)
-
-		if err := r.Update(ctx, &existingSecret); err != nil {
-			log.Error(err, "Failed to update Secret")
-			return err
-		}
-		log.Info("Successfully updated Secret",
-			"namespace", targetNamespace,
-			"name", secret.Name,
-			"type", existingSecret.Type)
-	}
-
-	return nil
-}
-
-func (r *NamespaceSyncReconciler) syncConfigMap(ctx context.Context, namespaceSync *syncv1.NamespaceSync, targetNamespace string) error {
-	log := log.FromContext(ctx)
-	log.Info("Starting ConfigMap sync",
-		"configMap", namespaceSync.Spec.ConfigMapName,
-		"sourceNamespace", namespaceSync.Spec.SourceNamespace,
-		"targetNamespace", targetNamespace)
-
-	// Get source configmap
-	var configMap corev1.ConfigMap
-	if err := r.Get(ctx, client.ObjectKey{
-		Namespace: namespaceSync.Spec.SourceNamespace,
-		Name:      namespaceSync.Spec.ConfigMapName,
-	}, &configMap); err != nil {
-		if errors.IsNotFound(err) {
-			log.Info("ConfigMap not found in source namespace",
-				"configMap", namespaceSync.Spec.ConfigMapName,
-				"namespace", namespaceSync.Spec.SourceNamespace)
-			return nil
-		}
-		if errors.IsForbidden(err) {
-			log.Error(err, "Permission denied to get ConfigMap in source namespace. Check RBAC permissions",
-				"configMap", namespaceSync.Spec.ConfigMapName,
-				"namespace", namespaceSync.Spec.SourceNamespace)
-			return fmt.Errorf("permission denied to get ConfigMap: %w", err)
-		}
-		log.Error(err, "Failed to get source ConfigMap",
-			"configMap", namespaceSync.Spec.ConfigMapName,
-			"namespace", namespaceSync.Spec.SourceNamespace)
-		return err
-	}
-	log.Info("Found source ConfigMap",
-		"name", configMap.Name,
-		"namespace", configMap.Namespace,
-		"labels", configMap.Labels,
-		"annotations", configMap.Annotations)
-
-	newConfigMap := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      configMap.Name,
-			Namespace: targetNamespace,
-		},
-		Data:       configMap.Data,
-		BinaryData: configMap.BinaryData,
-	}
-
-	r.copyLabelsAndAnnotations(&configMap.ObjectMeta, &newConfigMap.ObjectMeta)
+func (r *NamespaceSyncReconciler) createOrUpdateConfigMap(ctx context.Context, configMap *corev1.ConfigMap) error {
+	log := log.Log.WithValues("namespace", configMap.Namespace, "name", configMap.Name)
 
 	// Try to create or update the configmap
 	var existingConfigMap corev1.ConfigMap
 	err := r.Get(ctx, client.ObjectKey{
-		Namespace: targetNamespace,
+		Namespace: configMap.Namespace,
 		Name:      configMap.Name,
 	}, &existingConfigMap)
 
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Create new configmap if it doesn't exist
-			if err := r.Create(ctx, newConfigMap); err != nil {
+			if err := r.Create(ctx, configMap); err != nil {
 				log.Error(err, "Failed to create ConfigMap")
-				syncFailureCounter.WithLabelValues(targetNamespace, "configmap").Inc()
+				syncFailureCounter.WithLabelValues(configMap.Namespace, "configmap").Inc()
 				return err
 			}
-			log.Info("Successfully created ConfigMap",
-				"namespace", targetNamespace,
-				"name", configMap.Name)
-			syncSuccessCounter.WithLabelValues(targetNamespace, "configmap").Inc()
+			log.Info("Successfully created ConfigMap")
+			syncSuccessCounter.WithLabelValues(configMap.Namespace, "configmap").Inc()
 		} else {
 			return err
 		}
@@ -564,9 +550,52 @@ func (r *NamespaceSyncReconciler) syncConfigMap(ctx context.Context, namespaceSy
 			log.Error(err, "Failed to update ConfigMap")
 			return err
 		}
-		log.Info("Successfully updated ConfigMap",
-			"namespace", targetNamespace,
-			"name", configMap.Name)
+		log.Info("Successfully updated ConfigMap")
+	}
+
+	return nil
+}
+
+func (r *NamespaceSyncReconciler) createOrUpdateSecret(ctx context.Context, secret *corev1.Secret) error {
+	log := log.Log.WithValues("namespace", secret.Namespace, "name", secret.Name)
+
+	// Check if secret exists in target namespace
+	var existingSecret corev1.Secret
+	err := r.Get(ctx, types.NamespacedName{Namespace: secret.Namespace, Name: secret.Name}, &existingSecret)
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			log.Error(err, "Failed to get target secret")
+			return err
+		}
+		// Create new secret if it doesn't exist
+		newSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      secret.Name,
+				Namespace: secret.Namespace,
+			},
+			Type:       secret.Type,
+			Data:       secret.Data,
+			StringData: secret.StringData,
+		}
+		r.copyLabelsAndAnnotations(&secret.ObjectMeta, &newSecret.ObjectMeta)
+
+		if err := r.Create(ctx, newSecret); err != nil {
+			log.Error(err, "Failed to create Secret")
+			return err
+		}
+		log.Info("Successfully created Secret")
+	} else {
+		// Update existing secret
+		existingSecret.Data = secret.Data
+		existingSecret.StringData = secret.StringData
+		existingSecret.Type = secret.Type
+		r.copyLabelsAndAnnotations(&secret.ObjectMeta, &existingSecret.ObjectMeta)
+
+		if err := r.Update(ctx, &existingSecret); err != nil {
+			log.Error(err, "Failed to update Secret")
+			return err
+		}
+		log.Info("Successfully updated Secret")
 	}
 
 	return nil
@@ -580,7 +609,7 @@ func (r *NamespaceSyncReconciler) copyLabelsAndAnnotations(src, dst *metav1.Obje
 		dst.Annotations = make(map[string]string)
 	}
 
-	// 소스에서 메타데이터 사
+	// 소스에서 메타데이 사
 	for k, v := range src.Labels {
 		if !strings.HasPrefix(k, "kubernetes.io/") {
 			dst.Labels[k] = v
@@ -600,7 +629,7 @@ func (r *NamespaceSyncReconciler) copyLabelsAndAnnotations(src, dst *metav1.Obje
 
 // 임스페이스 변경시 관련된 NamespaceSync 찾기
 func (r *NamespaceSyncReconciler) findNamespaceSyncs(ctx context.Context, obj client.Object) []reconcile.Request {
-	log := log.FromContext(ctx)
+	log := log.Log.WithValues("namespace", obj.(*corev1.Namespace).Name)
 	namespace := obj.(*corev1.Namespace)
 	var namespaceSyncs syncv1.NamespaceSyncList
 	if err := r.List(ctx, &namespaceSyncs); err != nil {
@@ -610,7 +639,7 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncs(ctx context.Context, obj cl
 
 	var requests []reconcile.Request
 	for _, ns := range namespaceSyncs.Items {
-		// 1. 소스 네임스페이스가 변경된 경우
+		// 1. 소스 네임스페이가 변경된 경우
 		if namespace.Name == ns.Spec.SourceNamespace {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: types.NamespacedName{
@@ -623,7 +652,7 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncs(ctx context.Context, obj cl
 				"namespace", namespace.Name)
 		}
 
-		// 2. 대상 네임스페이스가 생성/수정된 경우
+		// 2. 상 네임스페이스가 생성/수정된 경우
 		if !r.shouldSkipNamespace(namespace.Name, ns.Spec.SourceNamespace, ns.Spec.Exclude) {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: types.NamespacedName{
@@ -640,12 +669,11 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncs(ctx context.Context, obj cl
 	return requests
 }
 
-// 리소스 정리를 위한 헬퍼 함수
+// 리소스 정리를 위 헬퍼 함수
 func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, namespaceSync *syncv1.NamespaceSync) error {
 	log := log.FromContext(ctx)
 	log.Info("Starting cleanup of synced resources")
 
-	// 모든 네임스페이스 목록 가져오기
 	var namespaceList corev1.NamespaceList
 	if err := r.List(ctx, &namespaceList); err != nil {
 		log.Error(err, "Failed to list namespaces during cleanup")
@@ -658,43 +686,43 @@ func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, na
 			continue
 		}
 
-		// Secret 삭제
-		if namespaceSync.Spec.SecretName != "" {
+		// Delete Secrets
+		for _, secretName := range namespaceSync.Spec.SecretName {
 			secret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      namespaceSync.Spec.SecretName,
+					Name:      secretName,
 					Namespace: ns.Name,
 				},
 			}
 			if err := r.Delete(ctx, secret); err != nil && !errors.IsNotFound(err) {
 				log.Error(err, "Failed to delete synced Secret",
 					"namespace", ns.Name,
-					"name", namespaceSync.Spec.SecretName)
+					"name", secretName)
 				errs = append(errs, err)
 			} else {
 				log.Info("Successfully deleted Secret",
 					"namespace", ns.Name,
-					"name", namespaceSync.Spec.SecretName)
+					"name", secretName)
 			}
 		}
 
-		// ConfigMap 삭제
-		if namespaceSync.Spec.ConfigMapName != "" {
+		// Delete ConfigMaps
+		for _, configMapName := range namespaceSync.Spec.ConfigMapName {
 			configMap := &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      namespaceSync.Spec.ConfigMapName,
+					Name:      configMapName,
 					Namespace: ns.Name,
 				},
 			}
 			if err := r.Delete(ctx, configMap); err != nil && !errors.IsNotFound(err) {
 				log.Error(err, "Failed to delete synced ConfigMap",
 					"namespace", ns.Name,
-					"name", namespaceSync.Spec.ConfigMapName)
+					"name", configMapName)
 				errs = append(errs, err)
 			} else {
 				log.Info("Successfully deleted ConfigMap",
 					"namespace", ns.Name,
-					"name", namespaceSync.Spec.ConfigMapName)
+					"name", configMapName)
 			}
 		}
 	}
@@ -705,4 +733,158 @@ func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, na
 		return fmt.Errorf("encountered errors during cleanup: %v", errs)
 	}
 	return nil
+}
+
+// // shouldSyncSecret checks if the secret should be synced
+// func (r *NamespaceSyncReconciler) shouldSyncSecret(ns *syncv1.NamespaceSync, secret *corev1.Secret) bool {
+// 	for _, secretName := range ns.Spec.SecretName {
+// 		if secretName == secret.Name {
+// 			return true
+// 		}
+// 	}
+// 	return false
+// }
+
+// // shouldSyncConfigMap checks if the configmap should be synced
+// func (r *NamespaceSyncReconciler) shouldSyncConfigMap(ns *syncv1.NamespaceSync, configMap *corev1.ConfigMap) bool {
+// 	for _, configMapName := range ns.Spec.ConfigMapName {
+// 		if configMapName == configMap.Name {
+// 			return true
+// 		}
+// 	}
+// 	return false
+// }
+
+// syncConfigMap 함수 수정 (configMapName 파라터 추가)
+func (r *NamespaceSyncReconciler) syncConfigMap(ctx context.Context, namespaceSync *syncv1.NamespaceSync, targetNamespace, configMapName string) error {
+	log := log.FromContext(ctx)
+
+	// Get source configmap
+	var configMap corev1.ConfigMap
+	if err := r.Get(ctx, client.ObjectKey{
+		Namespace: namespaceSync.Spec.SourceNamespace,
+		Name:      configMapName,
+	}, &configMap); err != nil {
+		if errors.IsNotFound(err) {
+			log.Info("ConfigMap not found in source namespace",
+				"configMap", configMapName,
+				"namespace", namespaceSync.Spec.SourceNamespace)
+			return nil
+		}
+		log.Error(err, "Failed to get source ConfigMap")
+		return err
+	}
+
+	// Create new ConfigMap for target namespace
+	newConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      configMapName,
+			Namespace: targetNamespace,
+		},
+		Data:       configMap.Data,
+		BinaryData: configMap.BinaryData,
+	}
+	r.copyLabelsAndAnnotations(&configMap.ObjectMeta, &newConfigMap.ObjectMeta)
+
+	// Create or update the configmap
+	if err := r.createOrUpdateConfigMap(ctx, newConfigMap); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// syncSecret 함수 수정
+func (r *NamespaceSyncReconciler) syncSecret(ctx context.Context, sourceNamespace, targetNamespace, secretName string) error {
+	log := log.Log.WithValues(
+		"secret", secretName,
+		"sourceNamespace", sourceNamespace,
+		"targetNamespace", targetNamespace,
+	)
+
+	// Get source secret
+	var secret corev1.Secret
+	if err := r.Get(ctx, types.NamespacedName{Namespace: sourceNamespace, Name: secretName}, &secret); err != nil {
+		if errors.IsNotFound(err) {
+			log.Info("Secret not found in source namespace")
+			return nil
+		}
+		log.Error(err, "Failed to get source Secret")
+		return err
+	}
+
+	log.Info("Found source Secret",
+		"name", secret.Name,
+		"namespace", secret.Namespace,
+		"type", secret.Type)
+
+	// Create new secret for target namespace
+	newSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: targetNamespace,
+		},
+		Type: secret.Type,
+		Data: secret.Data,
+	}
+	r.copyLabelsAndAnnotations(&secret.ObjectMeta, &newSecret.ObjectMeta)
+
+	if err := r.createOrUpdateSecret(ctx, newSecret); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// deleteResourcesFromNamespace deletes all synced resources from the specified namespace
+func (r *NamespaceSyncReconciler) deleteResourcesFromNamespace(ctx context.Context, namespacesync *syncv1.NamespaceSync, namespace string) error {
+	log := log.Log.WithValues("resource", namespacesync.Name, "namespace", namespace)
+
+	// Delete Secrets
+	for _, secretName := range namespacesync.Spec.SecretName {
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      secretName,
+				Namespace: namespace,
+			},
+		}
+		if err := r.Delete(ctx, secret); err != nil {
+			if !errors.IsNotFound(err) {
+				log.Error(err, "Failed to delete Secret", "name", secretName)
+				return fmt.Errorf("failed to delete secret %s: %w", secretName, err)
+			}
+		} else {
+			log.Info("Successfully deleted Secret", "name", secretName)
+		}
+	}
+
+	// Delete ConfigMaps
+	for _, configMapName := range namespacesync.Spec.ConfigMapName {
+		configMap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      configMapName,
+				Namespace: namespace,
+			},
+		}
+		if err := r.Delete(ctx, configMap); err != nil {
+			if !errors.IsNotFound(err) {
+				log.Error(err, "Failed to delete ConfigMap", "name", configMapName)
+				return fmt.Errorf("failed to delete configmap %s: %w", configMapName, err)
+			}
+		} else {
+			log.Info("Successfully deleted ConfigMap", "name", configMapName)
+		}
+	}
+
+	return nil
+}
+
+// contains checks if a slice contains a specific string
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }
