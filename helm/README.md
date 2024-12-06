@@ -46,6 +46,10 @@ The following table lists the configurable parameters of the k8s-namespace-sync 
 | `rbac.create` | Create RBAC resources | `true` |
 | `serviceAccount.create` | Create ServiceAccount | `true` |
 | `serviceAccount.name` | ServiceAccount name | `k8s-namespace-sync-controller-manager` |
+| `customresource.basic.enabled` | Enable basic sync configuration | `false` |
+| `customresource.exclude.enabled` | Enable exclude sync configuration | `false` |
+| `customresource.filter.enabled` | Enable filter sync configuration | `false` |
+| `customresource.target.enabled` | Enable target sync configuration | `false` |
 
 ## Namespace Configuration
 
@@ -89,6 +93,81 @@ spec:
 ```
 
 This prevents the controller from attempting to synchronize resources in its own namespace, which could cause unexpected behavior. The system namespaces are automatically excluded, so you only need to add your custom installation namespace to the exclude list.
+
+## Custom Resource Configuration
+
+The chart supports creating different types of NamespaceSync resources during installation. You can enable and configure them in your values file:
+
+### Basic Sync
+```yaml
+customresource:
+  basic:
+    enabled: true
+    sourceNamespace: "default"
+    configMapName:
+      - test-configmap
+    secretName:
+      - test-secret
+```
+
+### Exclude Sync
+```yaml
+customresource:
+  exclude:
+    enabled: true
+    sourceNamespace: "default"
+    configMapName:
+      - test-configmap
+      - test-configmap2
+    secretName:
+      - test-secret
+      - test-secret2
+    namespaces:
+      - test-ns2
+      - test-ns3
+```
+
+### Filter Sync
+```yaml
+customresource:
+  filter:
+    enabled: true
+    sourceNamespace: "default"
+    configMapName:
+      - test-configmap
+      - test-configmap2
+    secretName:
+      - test-secret
+      - test-secret2
+    configMaps:
+      exclude:
+        - "*2"
+    secrets:
+      exclude:
+        - "*2"
+    exclude:
+      - test-ns2
+      - test-ns3
+```
+
+### Target Sync
+```yaml
+customresource:
+  target:
+    enabled: true
+    sourceNamespace: "default"
+    namespaces:
+      - test-ns1
+      - test-ns2
+    configMapName:
+      - test-configmap
+      - test-configmap2
+    secretName:
+      - test-secret
+      - test-secret2
+```
+
+You can enable multiple types of sync configurations simultaneously by setting their respective `enabled` flags to `true`.
 
 ## Usage
 
