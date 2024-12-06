@@ -14,6 +14,8 @@ K8s Namespace Sync is a Kubernetes controller that automatically synchronizes Se
 - Support for manually excluding specific namespaces
 - Prometheus metrics support
 - Synchronization status monitoring
+- Resource filtering support with glob pattern matching
+- Selective resource synchronization based on name patterns
 
 ## How it Works
 
@@ -107,7 +109,7 @@ spec:
 
 Target apply the CR:
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_with_target.yaml
+kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_target.yaml
 ```
 
 With excluded namespaces:
@@ -135,7 +137,45 @@ spec:
 
 Exclude apply the CR:
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_with_exclude.yaml
+kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_exclude.yaml
+```
+
+With resource filters:
+
+```yaml
+apiVersion: sync.nsync.dev/v1
+kind: NamespaceSync
+metadata:
+  name: namespacesync-filter-sample
+  finalizers:
+    - namespacesync.nsync.dev/finalizer
+spec:
+  sourceNamespace: default
+  configMapName:
+    - test-configmap
+    - test-configmap2
+  secretName:
+    - test-secret
+    - test-secret2
+  resourceFilters:
+    configMaps:
+      # include:
+      #   - "test-configmap*"    # All ConfigMaps starting with test-configmap
+      exclude:
+        - "*2"            # Exclude ConfigMaps ending with 2
+    secrets:
+      # include:
+      #   - "test-secret*"   # All Secrets starting with test-secret
+      exclude:
+        - "*2"            # Exclude Secrets ending with 2
+  exclude:
+    - test-ns2
+    - test-ns3
+```
+
+Filter apply the CR:
+```bash
+kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_filter.yaml
 ```
 
 ### Sync Behavior
@@ -148,6 +188,15 @@ kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/ma
 - Labels and annotations from the source resources are preserved in synced resources
 - When the NamespaceSync CR is deleted, all synced resources are automatically cleaned up
 - Finalizer ensures proper cleanup of synced resources before CR deletion
+
+### Resource Filtering
+- Supports both include and exclude patterns for ConfigMaps and Secrets
+- Uses glob pattern matching (e.g., "*" for any characters)
+- Include patterns specify which resources to sync
+- Exclude patterns specify which resources to skip
+- If both include and exclude patterns are specified, exclude takes precedence
+- Patterns are matched against resource names
+- Can be combined with namespace targeting and exclusion
 
 ## Verification
 
@@ -190,12 +239,6 @@ Common issues and solutions:
 3. **Cleanup issues:**
    - Ensure finalizer is present in CR
    - Check controller logs for cleanup errors
-
-## Metrics
-
-The following Prometheus metrics are available:
-- `namespacesync_sync_success_total`: Number of successful synchronizations
-- `namespacesync_sync_failure_total`: Number of failed synchronizations
 
 ## Cleanup
 
