@@ -1,0 +1,13 @@
+customresource:
+  target:
+    enabled: true
+    sourceNamespace: "default"
+    namespaces:
+      - test-ns1
+      - test-ns2
+    configMapName:
+      - test-configmap
+      - test-configmap2
+    secretName:
+      - test-secret
+      - test-secret2

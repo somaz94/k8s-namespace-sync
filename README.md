@@ -311,7 +311,13 @@ kubectl delete configmap test-configmap2
 kubectl delete secret test-secret2
 ```
 
-2. Remove the controller:
+2. Remove the NamespaceSync CR:
+
+```bash
+kubectl delete namespacesync --all
+```
+
+3. Remove the controller:
 
 ```bash
 kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/install.yaml
