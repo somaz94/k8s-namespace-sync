@@ -1,0 +1,8 @@
+customresource:
+  basic:
+    enabled: true
+    sourceNamespace: "default"
+    configMapName:
+      - test-configmap
+    secretName:
+      - test-secret

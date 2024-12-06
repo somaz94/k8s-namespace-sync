@@ -1,0 +1,19 @@
+customresource:
+  filter:
+    enabled: true
+    sourceNamespace: "default"
+    configMapName:
+      - test-configmap
+      - test-configmap2
+    secretName:
+      - test-secret
+      - test-secret2
+    configMaps:
+      exclude:
+        - "*2"
+    secrets:
+      exclude:
+        - "*2"
+    exclude:
+      - test-ns2
+      - test-ns3

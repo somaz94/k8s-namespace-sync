@@ -190,7 +190,14 @@ spec:
 
 ## Uninstalling the Chart
 
-To uninstall/delete the deployment:
+To properly uninstall the chart and its resources:
+
+1. First, delete all NamespaceSync resources:
+```bash
+kubectl delete namespacesync --all
+```
+
+2. Then, uninstall the Helm chart:
 ```bash
 helm delete k8s-namespace-sync
 ```
