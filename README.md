@@ -29,7 +29,7 @@ kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/ma
 
 ## Usage
 
-1. Create a Secret or ConfigMap in the source namespace:
+### 1. Create a Secret or ConfigMap in the source namespace:
 
 ```yaml
 apiVersion: v1
@@ -60,7 +60,7 @@ kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/ma
 kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/test-configmap-secret/test-secret2.yaml
 ```
 
-2. Create a NamespaceSync CR:
+###2. Create a NamespaceSync CR:
 
 Basic synchronization:
 
@@ -114,13 +114,13 @@ kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/ma
 
 ## Verification
 
-1. Check synchronization status:
+### 1. Check synchronization status:
 
 ```bash
 kubectl get namespacesync namespacesync-sample -o yaml
 ```
 
-2. Verify resources in other namespaces:
+### 2. Verify resources in other namespaces:
 
 ```bash
 kubectl get secret test-secret -n target-namespace
