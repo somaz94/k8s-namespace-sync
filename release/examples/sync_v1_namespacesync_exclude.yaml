@@ -1,7 +1,7 @@
 apiVersion: sync.nsync.dev/v1
 kind: NamespaceSync
 metadata:
-  name: namespacesync-sample-with-exclude
+  name: namespacesync-sample-exclude
   finalizers:
     - namespacesync.nsync.dev/finalizer
 spec:
