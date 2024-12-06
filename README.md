@@ -107,8 +107,8 @@ metadata:
 spec:
   sourceNamespace: default
   targetNamespaces:  # Only sync to these namespaces
-    - production
-    - staging
+    - test-ns1
+    - test-ns2
   configMapName:
     - test-configmap
   secretName:
@@ -120,7 +120,18 @@ Target apply and test:
 kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_target.yaml
 
 # Check the resources in the target namespaces
-k get namespacesyncs.sync.nsync.dev
+kubectl get namespacesyncs.sync.nsync.dev
+
+# Create target namespaces
+kubectl create ns test-ns1
+kubectl create ns test-ns2
+
+# Check the resources in the target namespaces
+kubectl get secret,configmap -n test-ns1
+kubectl get secret,configmap -n test-ns2
+
+# Check the resources in the another namespace
+kubectl get secret,configmap -n <another-namespace>
 
 # Delete the CR after testing
 kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_target.yaml
@@ -155,6 +166,17 @@ kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/ma
 
 # Check the resources in the target namespaces
 k get namespacesyncs.sync.nsync.dev
+
+# Create target namespaces
+kubectl create ns test-ns2
+kubectl create ns test-ns3
+
+# Check the resources in the target namespaces
+kubectl get secret,configmap -n test-ns2
+kubectl get secret,configmap -n test-ns3
+
+# Check the resources in the another namespace
+kubectl get secret,configmap -n <another-namespace>
 
 # Delete the CR after testing
 kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_exclude.yaml
@@ -198,7 +220,19 @@ Filter apply and test:
 kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_filter.yaml
 
 # Check the resources in the target namespaces
-k get namespacesyncs.sync.nsync.dev
+kubectl get namespacesyncs.sync.nsync.dev
+
+# Create target namespaces
+kubectl create ns test-ns2
+kubectl create ns test-ns3
+
+# Check the resources in the target namespaces
+kubectl get secret,configmap -n test-ns2
+kubectl get secret,configmap -n test-ns3
+
+# Check the resources in the another namespace
+# Check the resources in the filtered configmap
+kubectl get secret,configmap -n <another-namespace>
 
 # Delete the CR after testing
 kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_filter.yaml
