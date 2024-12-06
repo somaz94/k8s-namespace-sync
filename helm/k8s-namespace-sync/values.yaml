@@ -88,3 +88,107 @@ metrics:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+# Custom Resource configurations
+customresource:
+  basic:
+    enabled: false
+    name: "namespacesync-basic"
+    sourceNamespace: "default"
+    configMapName: []  # Example: ["test-configmap"]
+    secretName: []     # Example: ["test-secret"]
+
+  exclude:
+    enabled: false
+    name: "namespacesync-exclude"
+    sourceNamespace: "default"
+    configMapName: []  # Example: ["test-configmap", "test-configmap2"]
+    secretName: []     # Example: ["test-secret", "test-secret2"]
+    namespaces: []     # Example: ["test-ns2", "test-ns3"]
+
+  filter:
+    enabled: false
+    name: "namespacesync-filter"
+    sourceNamespace: "default"
+    configMapName: []  # Example: ["test-configmap", "test-configmap2"]
+    secretName: []     # Example: ["test-secret", "test-secret2"]
+    configMaps:
+      include: []      # Example: ["test-configmap*"]  # All ConfigMaps starting with test-configmap
+      exclude: []      # Example: ["*2"]               # Exclude ConfigMaps ending with 2
+    secrets:
+      include: []      # Example: ["test-secret*"]     # All Secrets starting with test-secret
+      exclude: []      # Example: ["*2"]               # Exclude Secrets ending with 2
+    exclude: []        # Example: ["test-ns2", "test-ns3"]
+
+  target:
+    enabled: false
+    name: "namespacesync-target"
+    sourceNamespace: "default"
+    namespaces: []     # Example: ["test-ns1", "test-ns2"]
+    configMapName: []  # Example: ["test-configmap", "test-configmap2"]
+    secretName: []     # Example: ["test-secret", "test-secret2"]
+
+# Example values file for basic sync:
+#
+# customresource:
+#   basic:
+#     enabled: true
+#     sourceNamespace: "default"
+#     configMapName:
+#       - test-configmap
+#     secretName:
+#       - test-secret
+#
+# Example values file for exclude sync:
+#
+# cr:
+#   exclude:
+#     enabled: true
+#     sourceNamespace: "default"
+#     configMapName:
+#       - test-configmap
+#       - test-configmap2
+#     secretName:
+#       - test-secret
+#       - test-secret2
+#     namespaces:
+#       - test-ns2
+#       - test-ns3
+#
+# Example values file for filter sync:
+#
+# customresource:
+#   filter:
+#     enabled: true
+#     sourceNamespace: "default"
+#     configMapName:
+#       - test-configmap
+#       - test-configmap2
+#     secretName:
+#       - test-secret
+#       - test-secret2
+#     configMaps:
+#       exclude:
+#         - "*2"
+#     secrets:
+#       exclude:
+#         - "*2"
+#     exclude:
+#       - test-ns2
+#       - test-ns3
+#
+# Example values file for target sync:
+#
+# customresource:
+#   target:
+#     enabled: true
+#     sourceNamespace: "default"
+#     namespaces:
+#       - test-ns1
+#       - test-ns2
+#     configMapName:
+#       - test-configmap
+#       - test-configmap2
+#     secretName:
+#       - test-secret
+#       - test-secret2

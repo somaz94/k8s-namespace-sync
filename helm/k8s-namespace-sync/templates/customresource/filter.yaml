@@ -1,0 +1,22 @@
+{{- if .Values.customresource.filter.enabled }}
+apiVersion: sync.nsync.dev/v1
+kind: NamespaceSync
+metadata:
+  name: {{ .Values.customresource.filter.name | default "namespacesync-filter" }}
+  finalizers:
+    - namespacesync.nsync.dev/finalizer
+spec:
+  sourceNamespace: {{ .Values.customresource.filter.sourceNamespace | default "default" }}
+  configMapName: {{- toYaml .Values.customresource.filter.configMapName | nindent 4 }}
+  secretName: {{- toYaml .Values.customresource.filter.secretName | nindent 4 }}
+  resourceFilters:
+    {{- if .Values.customresource.filter.configMaps }}
+    configMaps: {{- toYaml .Values.customresource.filter.configMaps | nindent 6 }}
+    {{- end }}
+    {{- if .Values.customresource.filter.secrets }}
+    secrets: {{- toYaml .Values.customresource.filter.secrets | nindent 6 }}
+    {{- end }}
+  {{- if .Values.customresource.filter.exclude }}
+  exclude: {{- toYaml .Values.customresource.filter.exclude | nindent 4 }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,13 @@
+{{- if .Values.customresource.exclude.enabled }}
+apiVersion: sync.nsync.dev/v1
+kind: NamespaceSync
+metadata:
+  name: {{ .Values.customresource.exclude.name | default "namespacesync-exclude" }}
+  finalizers:
+    - namespacesync.nsync.dev/finalizer
+spec:
+  sourceNamespace: {{ .Values.customresource.exclude.sourceNamespace | default "default" }}
+  configMapName: {{- toYaml .Values.customresource.exclude.configMapName | nindent 4 }}
+  secretName: {{- toYaml .Values.customresource.exclude.secretName | nindent 4 }}
+  exclude: {{- toYaml .Values.customresource.exclude.namespaces | nindent 4 }}
+{{- end }}

@@ -1,0 +1,12 @@
+{{- if .Values.customresource.basic.enabled }}
+apiVersion: sync.nsync.dev/v1
+kind: NamespaceSync
+metadata:
+  name: {{ .Values.customresource.basic.name | default "namespacesync-basic" }}
+  finalizers:
+    - namespacesync.nsync.dev/finalizer
+spec:
+  sourceNamespace: {{ .Values.customresource.basic.sourceNamespace | default "default" }}
+  configMapName: {{- toYaml .Values.customresource.basic.configMapName | nindent 4 }}
+  secretName: {{- toYaml .Values.customresource.basic.secretName | nindent 4 }}
+{{- end }}
