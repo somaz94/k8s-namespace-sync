@@ -1,0 +1,42 @@
+Thank you for installing {{ .Chart.Name }}.
+
+Your release is named {{ .Release.Name }}.
+
+To verify the installation, you can run the following commands:
+
+1. Check if the controller is running:
+   kubectl get pods -n {{ .Values.namespace }} -l "app.kubernetes.io/name={{ include "k8s-namespace-sync.name" . }}"
+
+2. Check the controller logs:
+   kubectl logs -n {{ .Values.namespace }} -l "app.kubernetes.io/name={{ include "k8s-namespace-sync.name" . }}" -f
+
+3. Create a test NamespaceSync resource:
+
+   apiVersion: sync.nsync.dev/v1
+   kind: NamespaceSync
+   metadata:
+     name: test-sync
+     finalizers:
+       - namespacesync.nsync.dev/finalizer
+   spec:
+     sourceNamespace: default
+     configMapName:
+       - test-configmap
+     secretName:
+       - test-secret
+
+4. Verify the sync status:
+   kubectl get namespacesync test-sync -o yaml
+
+For more information and examples, please visit:
+{{ .Chart.Home }}
+
+Version: {{ .Chart.Version }}
+AppVersion: {{ .Chart.AppVersion }}
+
+Note: It may take a few minutes for the controller to start and begin processing resources.
+
+For troubleshooting and support:
+- Check the controller logs for any errors
+- Visit the project repository: {{ .Chart.Home }}
+- Report issues at: {{ .Chart.Home }}/issues
