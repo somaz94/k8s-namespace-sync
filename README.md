@@ -1,6 +1,7 @@
 # K8s Namespace Sync
 
 ![Top Language](https://img.shields.io/github/languages/top/somaz94/k8s-namespace-sync?color=green&logo=go&logoColor=b)
+![Latest Tag](https://img.shields.io/github/v/tag/somaz94/k8s-namespace-sync)
 
 K8s Namespace Sync is a Kubernetes controller that automatically synchronizes Secrets and ConfigMaps across multiple namespaces within a Kubernetes cluster.
 
@@ -12,6 +13,14 @@ K8s Namespace Sync is a Kubernetes controller that automatically synchronizes Se
 - Support for manually excluding specific namespaces
 - Prometheus metrics support
 - Synchronization status monitoring
+
+## How it Works
+
+The controller:
+1. Watches for changes in the source namespace's Secrets and ConfigMaps
+2. Automatically syncs changes to all target namespaces
+3. Maintains consistency by cleaning up resources when source is deleted
+4. Uses finalizers to ensure proper cleanup during deletion
 
 ## Installation
 ```bash
@@ -43,6 +52,14 @@ data:
   key2: value2
 ```
 
+if you want to test with multiple resources, you can apply the following resources:
+```bash
+kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/test-configmap-secret/test-configmap.yaml
+kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/test-configmap-secret/test-configmap2.yaml
+kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/test-configmap-secret/test-secret.yaml
+kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/test-configmap-secret/test-secret2.yaml
+```
+
 2. Create a NamespaceSync CR:
 
 Basic synchronization:
@@ -52,10 +69,14 @@ apiVersion: sync.nsync.dev/v1
 kind: NamespaceSync
 metadata:
   name: namespacesync-sample
+  finalizers:
+    - namespacesync.nsync.dev/finalizer
 spec:
   sourceNamespace: default
-  configMapName: test-configmap
-  secretName: test-secret
+  configMapName:
+    - test-configmap
+  secretName:
+    - test-secret
 ```
 
 Basic apply the CR:
@@ -69,14 +90,21 @@ With excluded namespaces:
 apiVersion: sync.nsync.dev/v1
 kind: NamespaceSync
 metadata:
-  name: namespacesync-sample-with-exclude
+  name: namespacesync-sample
+  finalizers:
+    - namespacesync.nsync.dev/finalizer
 spec:
   sourceNamespace: default
-  configMapName: test-configmap
-  secretName: test-secret
+  configMapName:
+    - test-configmap
+    - test-configmap2
+  secretName:
+    - test-secret
+    - test-secret2
   exclude:
     - test-ns2
     - test-ns3
+
 ```
 
 Exclude apply the CR:
@@ -108,6 +136,23 @@ The following namespaces are automatically excluded from synchronization:
 - k8s-namespace-sync-system
 
 Additionally, you can manually exclude specific namespaces using the `exclude` field in the NamespaceSync CR.
+
+## Troubleshooting
+
+Common issues and solutions:
+
+1. **Resources not syncing:**
+   - Check if namespace is in exclude list
+   - Verify controller logs: `kubectl logs -n namespacesync-system -l control-plane=controller-manager`
+   - Check NamespaceSync status: `kubectl get namespacesync <name> -o yaml`
+
+2. **Permission issues:**
+   - Ensure RBAC permissions are properly configured
+   - Check if ServiceAccount has necessary permissions
+
+3. **Cleanup issues:**
+   - Ensure finalizer is present in CR
+   - Check controller logs for cleanup errors
 
 ## Metrics
 
