@@ -12,11 +12,11 @@ type NamespaceSyncSpec struct {
 
 	// SecretName is the name of the secret to be synced
 	// +optional
-	SecretName string `json:"secretName,omitempty"`
+	SecretName []string `json:"secretName,omitempty"`
 
 	// ConfigMapName is the name of the configmap to be synced
 	// +optional
-	ConfigMapName string `json:"configMapName,omitempty"`
+	ConfigMapName []string `json:"configMapName,omitempty"`
 
 	// Exclude is a list of namespaces to exclude from synchronization
 	// +optional
