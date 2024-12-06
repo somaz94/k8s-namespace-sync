@@ -6,19 +6,22 @@ import (
 
 // NamespaceSyncSpec defines the desired state of NamespaceSync
 type NamespaceSyncSpec struct {
-	// SourceNamespace is the namespace containing the resources to be synced
-	// +kubebuilder:validation:Required
+	// SourceNamespace is the namespace to sync from
 	SourceNamespace string `json:"sourceNamespace"`
 
-	// SecretName is the name of the secret to be synced
+	// TargetNamespaces is the list of namespaces to sync to
 	// +optional
-	SecretName []string `json:"secretName,omitempty"`
+	TargetNamespaces []string `json:"targetNamespaces,omitempty"`
 
-	// ConfigMapName is the name of the configmap to be synced
+	// ConfigMapName is the name of the ConfigMap to sync
 	// +optional
 	ConfigMapName []string `json:"configMapName,omitempty"`
 
-	// Exclude is a list of namespaces to exclude from synchronization
+	// SecretName is the name of the Secret to sync
+	// +optional
+	SecretName []string `json:"secretName,omitempty"`
+
+	// Exclude is the list of namespaces to exclude from sync
 	// +optional
 	Exclude []string `json:"exclude,omitempty"`
 }
