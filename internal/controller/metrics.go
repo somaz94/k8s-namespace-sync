@@ -73,33 +73,3 @@ func init() {
 		resourceCount,
 	)
 }
-
-// recordSyncDuration is a helper function to record the duration of sync operations
-func recordSyncDuration(namespace, resourceType string, duration float64) {
-	syncDurationHistogram.WithLabelValues(namespace, resourceType).Observe(duration)
-}
-
-// updateResourceCount is a helper function to update the resource count
-func updateResourceCount(namespace, resourceType string, count float64) {
-	resourceCount.WithLabelValues(namespace, resourceType).Set(count)
-}
-
-// incrementSyncSuccess increments the success counter for a specific resource type
-func incrementSyncSuccess(namespace, resourceType string) {
-	syncSuccessCounter.WithLabelValues(namespace, resourceType).Inc()
-}
-
-// incrementSyncFailure increments the failure counter for a specific resource type
-func incrementSyncFailure(namespace, resourceType string) {
-	syncFailureCounter.WithLabelValues(namespace, resourceType).Inc()
-}
-
-// incrementCleanupSuccess increments the cleanup success counter for a specific resource type
-func incrementCleanupSuccess(namespace, resourceType string) {
-	cleanupSuccessCounter.WithLabelValues(namespace, resourceType).Inc()
-}
-
-// incrementCleanupFailure increments the cleanup failure counter for a specific resource type
-func incrementCleanupFailure(namespace, resourceType string) {
-	cleanupFailureCounter.WithLabelValues(namespace, resourceType).Inc()
-}

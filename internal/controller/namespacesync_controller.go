@@ -66,6 +66,17 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
+	// Validate NamespaceSync resource
+	if err := validateNamespaceSync(namespacesync); err != nil {
+		log.Error(err, "Invalid NamespaceSync resource")
+		// Update status to reflect validation error
+		failedNamespaces := map[string]string{"validation": err.Error()}
+		if updateErr := r.updateStatus(ctx, namespacesync, nil, failedNamespaces); updateErr != nil {
+			log.Error(updateErr, "Failed to update status after validation error")
+		}
+		return ctrl.Result{}, err
+	}
+
 	// Handle deletion
 	if !namespacesync.DeletionTimestamp.IsZero() {
 		return r.handleDeletionAndStatus(ctx, namespacesync)
