@@ -96,15 +96,25 @@ func (r *NamespaceSyncReconciler) syncSecret(ctx context.Context, sourceNamespac
 		Name:      secretName,
 	}, &secret); err != nil {
 		if errors.IsNotFound(err) {
-			log.Info("Secret not found in source namespace",
+			// Source secret was deleted, delete from target namespace
+			targetSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      secretName,
+					Namespace: targetNamespace,
+				},
+			}
+			if err := r.Delete(ctx, targetSecret); err != nil && !errors.IsNotFound(err) {
+				return err
+			}
+			log.Info("Deleted secret from target namespace as it was deleted from source",
 				"secret", secretName,
-				"namespace", sourceNamespace)
+				"targetNamespace", targetNamespace)
 			return nil
 		}
 		return err
 	}
 
-	// Create new secret for target namespace
+	// Create or update secret in target namespace
 	newSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
@@ -129,15 +139,25 @@ func (r *NamespaceSyncReconciler) syncConfigMap(ctx context.Context, namespaceSy
 		Name:      configMapName,
 	}, &configMap); err != nil {
 		if errors.IsNotFound(err) {
-			log.Info("ConfigMap not found in source namespace",
-				"configMap", configMapName,
-				"namespace", namespaceSync.Spec.SourceNamespace)
+			// Source configmap was deleted, delete from target namespace
+			targetConfigMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      configMapName,
+					Namespace: targetNamespace,
+				},
+			}
+			if err := r.Delete(ctx, targetConfigMap); err != nil && !errors.IsNotFound(err) {
+				return err
+			}
+			log.Info("Deleted configmap from target namespace as it was deleted from source",
+				"configmap", configMapName,
+				"targetNamespace", targetNamespace)
 			return nil
 		}
 		return err
 	}
 
-	// Create new ConfigMap for target namespace
+	// Create or update configmap in target namespace
 	newConfigMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      configMapName,
