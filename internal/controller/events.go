@@ -65,21 +65,23 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncsForSecret(ctx context.Contex
 
 	var requests []reconcile.Request
 	for _, ns := range namespaceSyncs.Items {
-		// Check if the secret name is in the SecretName list and from the source namespace
-		for _, secretName := range ns.Spec.SecretName {
-			if secretName == secret.Name && ns.Spec.SourceNamespace == secret.Namespace {
-				requests = append(requests, reconcile.Request{
-					NamespacedName: types.NamespacedName{
-						Name:      ns.Name,
-						Namespace: ns.Namespace,
-					},
-				})
-				log.V(1).Info("Queuing reconcile for NamespaceSync due to Secret change",
-					"namespacesync", ns.Name,
-					"secret", secret.Name,
-					"namespace", secret.Namespace)
-				break
-			}
+		// Check if this secret is from source namespace or target namespaces
+		isSourceSecret := ns.Spec.SourceNamespace == secret.Namespace
+		isTargetSecret := r.shouldSyncToNamespace(secret.Namespace, &ns)
+
+		// Trigger reconciliation for both source and target namespace events
+		if (isSourceSecret && contains(ns.Spec.SecretName, secret.Name)) ||
+			(isTargetSecret && contains(ns.Spec.SecretName, secret.Name)) {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      ns.Name,
+					Namespace: ns.Namespace,
+				},
+			})
+			log.V(1).Info("Queuing reconcile for NamespaceSync due to Secret change",
+				"namespacesync", ns.Name,
+				"secret", secret.Name,
+				"namespace", secret.Namespace)
 		}
 	}
 	return requests
@@ -97,21 +99,23 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncsForConfigMap(ctx context.Con
 
 	var requests []reconcile.Request
 	for _, ns := range namespaceSyncs.Items {
-		// Check if the configmap name is in the ConfigMapName list and from the source namespace
-		for _, configMapName := range ns.Spec.ConfigMapName {
-			if configMapName == configMap.Name && ns.Spec.SourceNamespace == configMap.Namespace {
-				requests = append(requests, reconcile.Request{
-					NamespacedName: types.NamespacedName{
-						Name:      ns.Name,
-						Namespace: ns.Namespace,
-					},
-				})
-				log.V(1).Info("Queuing reconcile for NamespaceSync due to ConfigMap change",
-					"namespacesync", ns.Name,
-					"configmap", configMap.Name,
-					"namespace", configMap.Namespace)
-				break
-			}
+		// Check if this configmap is from source namespace or target namespaces
+		isSourceConfigMap := ns.Spec.SourceNamespace == configMap.Namespace
+		isTargetConfigMap := r.shouldSyncToNamespace(configMap.Namespace, &ns)
+
+		// Trigger reconciliation for both source and target namespace events
+		if (isSourceConfigMap && contains(ns.Spec.ConfigMapName, configMap.Name)) ||
+			(isTargetConfigMap && contains(ns.Spec.ConfigMapName, configMap.Name)) {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      ns.Name,
+					Namespace: ns.Namespace,
+				},
+			})
+			log.V(1).Info("Queuing reconcile for NamespaceSync due to ConfigMap change",
+				"namespacesync", ns.Name,
+				"configmap", configMap.Name,
+				"namespace", configMap.Namespace)
 		}
 	}
 	return requests

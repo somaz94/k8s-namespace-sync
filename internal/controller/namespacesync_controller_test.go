@@ -457,3 +457,162 @@ var _ = Describe("NamespaceSync Controller with Resource Filters", func() {
 		})
 	})
 })
+
+var _ = Describe("NamespaceSync Controller Resource Deletion", func() {
+	Context("When deleting resources in source and target namespaces", func() {
+		It("should properly handle resource deletions and re-syncs", func() {
+			ctx := context.Background()
+
+			By("Creating test namespaces")
+			sourceNs := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "source-ns-deletion",
+				},
+			}
+			Expect(k8sClient.Create(ctx, sourceNs)).To(Succeed())
+
+			targetNs := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "target-ns-deletion",
+				},
+			}
+			Expect(k8sClient.Create(ctx, targetNs)).To(Succeed())
+
+			By("Creating source ConfigMap and Secret")
+			sourceConfigMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap-deletion",
+					Namespace: "source-ns-deletion",
+				},
+				Data: map[string]string{
+					"key": "value",
+				},
+			}
+			Expect(k8sClient.Create(ctx, sourceConfigMap)).To(Succeed())
+
+			sourceSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-secret-deletion",
+					Namespace: "source-ns-deletion",
+				},
+				Type: corev1.SecretTypeOpaque,
+				Data: map[string][]byte{
+					"key": []byte("value"),
+				},
+			}
+			Expect(k8sClient.Create(ctx, sourceSecret)).To(Succeed())
+
+			By("Creating NamespaceSync resource")
+			namespaceSync := &syncv1.NamespaceSync{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-sync-deletion",
+					Namespace: "source-ns-deletion",
+				},
+				Spec: syncv1.NamespaceSyncSpec{
+					SourceNamespace: "source-ns-deletion",
+					SecretName:      []string{"test-secret-deletion"},
+					ConfigMapName:   []string{"test-configmap-deletion"},
+				},
+			}
+			Expect(k8sClient.Create(ctx, namespaceSync)).To(Succeed())
+
+			By("Verifying initial sync to target namespace")
+			Eventually(func() error {
+				var targetConfigMap corev1.ConfigMap
+				if err := k8sClient.Get(ctx, client.ObjectKey{
+					Namespace: "target-ns-deletion",
+					Name:      "test-configmap-deletion",
+				}, &targetConfigMap); err != nil {
+					return err
+				}
+
+				var targetSecret corev1.Secret
+				if err := k8sClient.Get(ctx, client.ObjectKey{
+					Namespace: "target-ns-deletion",
+					Name:      "test-secret-deletion",
+				}, &targetSecret); err != nil {
+					return err
+				}
+				return nil
+			}, time.Second*10, time.Second).Should(Succeed())
+
+			By("Deleting source ConfigMap")
+			Expect(k8sClient.Delete(ctx, sourceConfigMap)).To(Succeed())
+
+			By("Verifying ConfigMap is deleted from target namespace")
+			Eventually(func() bool {
+				var targetConfigMap corev1.ConfigMap
+				err := k8sClient.Get(ctx, client.ObjectKey{
+					Namespace: "target-ns-deletion",
+					Name:      "test-configmap-deletion",
+				}, &targetConfigMap)
+				return errors.IsNotFound(err)
+			}, time.Second*10, time.Second).Should(BeTrue())
+
+			By("Recreating source ConfigMap")
+			sourceConfigMap = &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap-deletion",
+					Namespace: "source-ns-deletion",
+				},
+				Data: map[string]string{
+					"key": "new-value",
+				},
+			}
+			Expect(k8sClient.Create(ctx, sourceConfigMap)).To(Succeed())
+
+			By("Verifying ConfigMap is re-synced to target namespace")
+			Eventually(func() error {
+				var targetConfigMap corev1.ConfigMap
+				if err := k8sClient.Get(ctx, client.ObjectKey{
+					Namespace: "target-ns-deletion",
+					Name:      "test-configmap-deletion",
+				}, &targetConfigMap); err != nil {
+					return err
+				}
+				Expect(targetConfigMap.Data["key"]).To(Equal("new-value"))
+				return nil
+			}, time.Second*10, time.Second).Should(Succeed())
+
+			By("Deleting ConfigMap from target namespace")
+			targetConfigMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap-deletion",
+					Namespace: "target-ns-deletion",
+				},
+			}
+			Expect(k8sClient.Delete(ctx, targetConfigMap)).To(Succeed())
+
+			By("Verifying ConfigMap is re-synced from source namespace")
+			Eventually(func() error {
+				var resyncdConfigMap corev1.ConfigMap
+				if err := k8sClient.Get(ctx, client.ObjectKey{
+					Namespace: "target-ns-deletion",
+					Name:      "test-configmap-deletion",
+				}, &resyncdConfigMap); err != nil {
+					return err
+				}
+				Expect(resyncdConfigMap.Data["key"]).To(Equal("new-value"))
+				return nil
+			}, time.Second*10, time.Second).Should(Succeed())
+
+			By("Deleting source Secret")
+			Expect(k8sClient.Delete(ctx, sourceSecret)).To(Succeed())
+
+			By("Verifying Secret is deleted from target namespace")
+			Eventually(func() bool {
+				var targetSecret corev1.Secret
+				err := k8sClient.Get(ctx, client.ObjectKey{
+					Namespace: "target-ns-deletion",
+					Name:      "test-secret-deletion",
+				}, &targetSecret)
+				return errors.IsNotFound(err)
+			}, time.Second*10, time.Second).Should(BeTrue())
+
+			By("Cleaning up resources")
+			Expect(k8sClient.Delete(ctx, namespaceSync)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, sourceNs)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, targetNs)).To(Succeed())
+		})
+	})
+})

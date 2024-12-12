@@ -1,5 +1,5 @@
 # Image URL to use all building/pushing image targets
-IMG ?= somaz940/k8s-namespace-sync:v0.1.5
+IMG ?= somaz940/k8s-namespace-sync:v0.1.6
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
 
@@ -122,7 +122,11 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
 	- $(CONTAINER_TOOL) buildx create --name k8s-namespace-sync-builder
 	$(CONTAINER_TOOL) buildx use k8s-namespace-sync-builder
-	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile.cross .
+	# Build and push both version-specific and latest tags
+	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) \
+		--tag ${IMG} \
+		--tag $(shell echo ${IMG} | cut -f1 -d:):latest \
+		-f Dockerfile.cross .
 	- $(CONTAINER_TOOL) buildx rm k8s-namespace-sync-builder
 	rm Dockerfile.cross
 
