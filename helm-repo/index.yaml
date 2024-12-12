@@ -5,10 +5,10 @@ entries:
       helm.sh/hook: pre-install,pre-upgrade
       helm.sh/hook-weight: "-5"
     apiVersion: v2
-    appVersion: v0.1.4
-    created: "2024-12-06T16:31:51.727338+09:00"
+    appVersion: v0.1.5
+    created: "2024-12-12T12:36:03.399418+09:00"
     description: A Helm chart for K8s Namespace Sync Controller
-    digest: c98ff50d3277b115b074c96af4ff2c1d929656f46154bb04ece9340fd2a2dfb2
+    digest: 4e69ff5ed75b0d22328b6e96c6b6a3b8c463bf36eb48d9e643fb8d582f488978
     home: https://github.com/somaz94/k8s-namespace-sync
     icon: https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/docs/images/logo.png
     keywords:
@@ -28,4 +28,4 @@ entries:
     urls:
     - https://somaz94.github.io/k8s-namespace-sync/helm-repo/k8s-namespace-sync-0.1.0.tgz
     version: 0.1.0
-generated: "2024-12-06T16:31:51.726957+09:00"
+generated: "2024-12-12T12:36:03.39871+09:00"
