@@ -58,6 +58,9 @@ The following table lists the configurable parameters of the k8s-namespace-sync 
 By default, the controller is installed in the `k8s-namespace-sync-system` namespace. If you need to install it in a different namespace, you can use the `namespace` parameter:
 
 ```bash
+# Using default
+helm install k8s-namespace-sync k8s-namespace-sync/k8s-namespace-sync
+
 # Using --set
 helm install k8s-namespace-sync k8s-namespace-sync/k8s-namespace-sync --set namespace=custom-namespace
 
