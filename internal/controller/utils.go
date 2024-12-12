@@ -69,44 +69,6 @@ func (r *NamespaceSyncReconciler) updateStatus(ctx context.Context, namespaceSyn
 	})
 }
 
-// calculateSyncStats returns statistics about sync operations
-func calculateSyncStats(syncedNamespaces []string, failedNamespaces map[string]string) (int, int, float64) {
-	totalNamespaces := len(syncedNamespaces) + len(failedNamespaces)
-	successCount := len(syncedNamespaces)
-	failureCount := len(failedNamespaces)
-
-	var successRate float64
-	if totalNamespaces > 0 {
-		successRate = float64(successCount) / float64(totalNamespaces) * 100
-	}
-
-	return successCount, failureCount, successRate
-}
-
-// formatDuration formats a duration in a human-readable format
-func formatDuration(d time.Duration) string {
-	if d < time.Second {
-		return fmt.Sprintf("%dms", d.Milliseconds())
-	}
-	if d < time.Minute {
-		return fmt.Sprintf("%.1fs", d.Seconds())
-	}
-	if d < time.Hour {
-		return fmt.Sprintf("%dm%ds", int(d.Minutes()), int(d.Seconds())%60)
-	}
-	return fmt.Sprintf("%dh%dm", int(d.Hours()), int(d.Minutes())%60)
-}
-
-// logSyncStats logs sync operation statistics
-func logSyncStats(ctx context.Context, successCount, failureCount int, successRate float64, duration time.Duration) {
-	log := log.FromContext(ctx)
-	log.Info("Sync operation completed",
-		"successCount", successCount,
-		"failureCount", failureCount,
-		"successRate", fmt.Sprintf("%.1f%%", successRate),
-		"duration", formatDuration(duration))
-}
-
 // validateNamespaceSync validates the NamespaceSync resource
 func validateNamespaceSync(namespaceSync *syncv1.NamespaceSync) error {
 	if namespaceSync.Spec.SourceNamespace == "" {

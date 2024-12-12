@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: somaz940/k8s-namespace-sync
-  newTag: v0.1.4
+  newTag: v0.1.5
