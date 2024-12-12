@@ -1,7 +1,6 @@
 # K8s Namespace Sync
 
 ![Top Language](https://img.shields.io/github/languages/top/somaz94/k8s-namespace-sync?color=green&logo=go&logoColor=b)
-![Latest Tag](https://img.shields.io/github/v/tag/somaz94/k8s-namespace-sync)
 ![k8s-namespace-sync](https://img.shields.io/github/v/tag/somaz94/k8s-namespace-sync?label=k8s-namespace-sync&logo=kubernetes&logoColor=white)
 
 K8s Namespace Sync is a Kubernetes controller that automatically synchronizes Secrets and ConfigMaps across multiple namespaces within a Kubernetes cluster.
