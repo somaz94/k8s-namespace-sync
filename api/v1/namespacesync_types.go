@@ -70,12 +70,12 @@ type ResourceFilters struct {
 	ConfigMaps *ResourceFilter `json:"configMaps,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="Source",type="string",JSONPath=".spec.sourceNamespace"
-//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
-//+kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
-//+kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Source",type="string",JSONPath=".spec.sourceNamespace"
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
+// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
+// +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 
 // NamespaceSync is the Schema for the namespacesyncs API
 type NamespaceSync struct {
@@ -86,7 +86,7 @@ type NamespaceSync struct {
 	Status NamespaceSyncStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // NamespaceSyncList contains a list of NamespaceSync
 type NamespaceSyncList struct {
