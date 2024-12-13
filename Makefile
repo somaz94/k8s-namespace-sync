@@ -116,19 +116,35 @@ docker-push: ## Push docker image with the manager.
 # - be able to push the image to your registry (i.e. if you do not set a valid value via IMG=<myregistry/image:<tag>> then the export will fail)
 # To adequately provide solutions that are compatible with multiple platforms, you should consider using this option.
 PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
-.PHONY: docker-buildx
-docker-buildx: ## Build and push docker image for the manager for cross-platform support
-	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
+.PHONY: docker-buildx-tag
+docker-buildx-tag: ## Build and push docker image for the manager for cross-platform support with specific version
+	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
 	- $(CONTAINER_TOOL) buildx create --name k8s-namespace-sync-builder
 	$(CONTAINER_TOOL) buildx use k8s-namespace-sync-builder
-	# Build and push both version-specific and latest tags
+	# Build and push version-specific tag
 	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) \
 		--tag ${IMG} \
+		-f Dockerfile.cross .
+	- $(CONTAINER_TOOL) buildx rm k8s-namespace-sync-builder
+	rm Dockerfile.cross
+
+.PHONY: docker-buildx-latest
+docker-buildx-latest: ## Build and push docker image for the manager for cross-platform support with latest tag
+	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross
+	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
+	- $(CONTAINER_TOOL) buildx create --name k8s-namespace-sync-builder
+	$(CONTAINER_TOOL) buildx use k8s-namespace-sync-builder
+	# Build and push latest tag
+	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) \
 		--tag $(shell echo ${IMG} | cut -f1 -d:):latest \
 		-f Dockerfile.cross .
 	- $(CONTAINER_TOOL) buildx rm k8s-namespace-sync-builder
 	rm Dockerfile.cross
+
+.PHONY: docker-buildx
+docker-buildx: ## Build and push both version-specific and latest tags
+docker-buildx: docker-buildx-tag docker-buildx-latest
 
 .PHONY: build-installer
 build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
