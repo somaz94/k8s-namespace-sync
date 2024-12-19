@@ -323,6 +323,40 @@ kubectl delete namespacesync --all
 kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/install.yaml
 ```
 
+# Development Setup
+
+### Install Required Tools
+
+All required tools will be automatically downloaded to `./bin` directory when running:
+```bash
+make install-tools
+```
+
+Or you can install individual tools:
+```bash
+# Install controller-gen
+make controller-gen  # v0.16.4
+
+# Install kustomize
+make kustomize      # v5.5.0
+
+# Install setup-envtest
+make envtest        # v0.19.0
+
+# Install golangci-lint
+make golangci-lint  # v1.61.0
+```
+
+Manual installation locations:
+- All tools will be installed in `./bin` directory
+- Specific versions:
+  - controller-gen v0.16.4
+  - kustomize v5.5.0
+  - setup-envtest v0.19.0
+  - golangci-lint v1.61.0
+
+Note: The binary directory (`./bin`) is git-ignored and will be created when needed.
+
 ## Contributing
 
 Issues and pull requests are welcome.

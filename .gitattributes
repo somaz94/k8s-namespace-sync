@@ -1,2 +1,0 @@
-bin/k8s/1.31.0-darwin-arm64/kube-apiserver filter=lfs diff=lfs merge=lfs -text
-bin/k8s/1.31.0-darwin-arm64/kubectl filter=lfs diff=lfs merge=lfs -text
