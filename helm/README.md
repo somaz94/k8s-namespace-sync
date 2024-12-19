@@ -117,7 +117,7 @@ Local install Method
 ```bash
 git clone https://github.com/somaz94/k8s-namespace-sync.git
 cd k8s-namespace-sync
-helm install k8s-namespace-sync ./helm/k8s-namespace-sync -f ./helm/k8s-namespace-sync/values/basic.yaml
+helm install k8s-namespace-sync ./helm/k8s-namespace-sync -f ./helm/k8s-namespace-sync/values/basic-values.yaml
 ```
 
 ### Exclude Sync
