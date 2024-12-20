@@ -35,6 +35,9 @@ jobs:
         with:
           go-version: '~1.22'
 
+      - name: Install required tools
+        run: make install-tools
+
       - name: Running Tests
         run: |
           go mod tidy

@@ -47,6 +47,9 @@ jobs:
       - name: Create kind cluster
         run: kind create cluster
 
+      - name: Install required tools
+        run: make install-tools
+
       - name: Running Test e2e
         run: |
           go mod tidy
