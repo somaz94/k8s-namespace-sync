@@ -1,0 +1,27 @@
+{{- if and .Values.crds.create .Values.crds.remove }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "k8s-namespace-sync.fullname" . }}-crd-cleanup
+  namespace: {{ .Values.namespace }}
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+  labels:
+    {{- include "k8s-namespace-sync.labels" . | nindent 4 }}
+spec:
+  template:
+    metadata:
+      name: {{ include "k8s-namespace-sync.fullname" . }}-crd-cleanup
+    spec:
+      serviceAccountName: {{ include "k8s-namespace-sync.serviceAccountName" . }}
+      containers:
+      - name: kubectl
+        image: bitnami/kubectl
+        command:
+        - /bin/sh
+        - -c
+        - |
+          kubectl delete crd namespacesyncs.sync.nsync.dev --ignore-not-found
+      restartPolicy: Never
+{{- end }}
