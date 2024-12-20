@@ -32,9 +32,20 @@ The following table lists the configurable parameters of the k8s-namespace-sync 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `namespace` | Namespace where the controller will be installed | `k8s-namespace-sync-system` |
+| `nameOverride` | Override the name of the chart | `""` |
+| `fullnameOverride` | Override the full name of the chart | `""` |
 | `image.repository` | Controller image repository | `somaz940/k8s-namespace-sync` |
-| `image.tag` | Controller image tag | `v0.1.4` |
+| `image.tag` | Controller image tag | `v0.1.6` |
 | `image.pullPolicy` | Image pull policy | `IfNotPresent` |
+| `imagePullSecrets` | Image pull secrets | `[]` |
+| `serviceAccount.create` | Create ServiceAccount | `true` |
+| `serviceAccount.name` | ServiceAccount name | `k8s-namespace-sync-controller-manager` |
+| `serviceAccount.annotations` | ServiceAccount annotations | `{}` |
+| `podAnnotations` | Pod annotations | `{}` |
+| `podLabels` | Pod labels | `{}` |
+| `podSecurityContext.runAsNonRoot` | Run container as non-root | `true` |
+| `securityContext.allowPrivilegeEscalation` | Allow privilege escalation | `false` |
+| `securityContext.capabilities.drop` | Drop capabilities | `["ALL"]` |
 | `resources.limits.cpu` | CPU resource limits | `500m` |
 | `resources.limits.memory` | Memory resource limits | `128Mi` |
 | `resources.requests.cpu` | CPU resource requests | `10m` |
@@ -42,14 +53,56 @@ The following table lists the configurable parameters of the k8s-namespace-sync 
 | `controller.metrics.bindAddress` | Metrics bind address | `:8443` |
 | `controller.health.bindAddress` | Health probe bind address | `:8081` |
 | `controller.leaderElection.enabled` | Enable leader election | `true` |
+| `controller.logging.development` | Enable development logging | `true` |
 | `controller.logging.level` | Log level | `debug` |
+| `controller.logging.encoder` | Log encoder | `console` |
+| `controller.logging.stacktraceLevel` | Stack trace log level | `error` |
+| `service.type` | Service type | `ClusterIP` |
+| `service.port` | Service port | `8443` |
+| `probes.liveness.initialDelaySeconds` | Liveness probe initial delay | `15` |
+| `probes.liveness.periodSeconds` | Liveness probe period | `20` |
+| `probes.liveness.port` | Liveness probe port | `8081` |
+| `probes.liveness.path` | Liveness probe path | `/healthz` |
+| `probes.readiness.initialDelaySeconds` | Readiness probe initial delay | `5` |
+| `probes.readiness.periodSeconds` | Readiness probe period | `10` |
+| `probes.readiness.port` | Readiness probe port | `8081` |
+| `probes.readiness.path` | Readiness probe path | `/readyz` |
 | `rbac.create` | Create RBAC resources | `true` |
-| `serviceAccount.create` | Create ServiceAccount | `true` |
-| `serviceAccount.name` | ServiceAccount name | `k8s-namespace-sync-controller-manager` |
+| `crds.create` | Create CRDs | `true` |
+| `crds.remove` | Remove CRDs on uninstall | `true` |
+| `metrics.enabled` | Enable metrics | `true` |
+| `metrics.service.port` | Metrics service port | `8443` |
+| `metrics.service.annotations` | Metrics service annotations | `{}` |
+| `nodeSelector` | Node selector | `{}` |
+| `tolerations` | Tolerations | `[]` |
+| `affinity` | Affinity rules | `{}` |
 | `customresource.basic.enabled` | Enable basic sync configuration | `false` |
+| `customresource.basic.name` | Basic sync configuration name | `namespacesync-basic` |
+| `customresource.basic.sourceNamespace` | Source namespace for basic sync | `default` |
+| `customresource.basic.configMapName` | ConfigMaps to sync for basic config | `[]` |
+| `customresource.basic.secretName` | Secrets to sync for basic config | `[]` |
 | `customresource.exclude.enabled` | Enable exclude sync configuration | `false` |
+| `customresource.exclude.name` | Exclude sync configuration name | `namespacesync-exclude` |
+| `customresource.exclude.sourceNamespace` | Source namespace for exclude sync | `default` |
+| `customresource.exclude.configMapName` | ConfigMaps to sync for exclude config | `[]` |
+| `customresource.exclude.secretName` | Secrets to sync for exclude config | `[]` |
+| `customresource.exclude.namespaces` | Namespaces to exclude | `[]` |
 | `customresource.filter.enabled` | Enable filter sync configuration | `false` |
+| `customresource.filter.name` | Filter sync configuration name | `namespacesync-filter` |
+| `customresource.filter.sourceNamespace` | Source namespace for filter sync | `default` |
+| `customresource.filter.configMapName` | ConfigMaps to sync for filter config | `[]` |
+| `customresource.filter.secretName` | Secrets to sync for filter config | `[]` |
+| `customresource.filter.configMaps.include` | ConfigMap include patterns | `[]` |
+| `customresource.filter.configMaps.exclude` | ConfigMap exclude patterns | `[]` |
+| `customresource.filter.secrets.include` | Secret include patterns | `[]` |
+| `customresource.filter.secrets.exclude` | Secret exclude patterns | `[]` |
+| `customresource.filter.exclude` | Namespaces to exclude for filter config | `[]` |
 | `customresource.target.enabled` | Enable target sync configuration | `false` |
+| `customresource.target.name` | Target sync configuration name | `namespacesync-target` |
+| `customresource.target.sourceNamespace` | Source namespace for target sync | `default` |
+| `customresource.target.namespaces` | Target namespaces | `[]` |
+| `customresource.target.configMapName` | ConfigMaps to sync for target config | `[]` |
+| `customresource.target.secretName` | Secrets to sync for target config | `[]` |
 
 ## Namespace Configuration
 
