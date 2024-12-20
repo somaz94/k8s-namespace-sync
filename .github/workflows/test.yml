@@ -36,6 +36,9 @@ jobs:
           go-version: '~1.22'
 
       - name: Install required tools
+        env:
+          GOOS: linux
+          GOARCH: amd64
         run: make install-tools
 
       - name: Running Tests

@@ -48,6 +48,9 @@ jobs:
         run: kind create cluster
 
       - name: Install required tools
+        env:
+          GOOS: linux
+          GOARCH: amd64
         run: make install-tools
 
       - name: Running Test e2e
