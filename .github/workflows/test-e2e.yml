@@ -2,25 +2,7 @@ name: E2E Tests
 
 on:
   push:
-    paths:
-      - '**.go'                           # Go 소스 파일
-      - 'go.mod'                          # Go 모듈 파일
-      - 'go.sum'                          # Go 모듈 해시
-      - 'Makefile'                        # Makefile
-      - '.github/workflows/test-e2e.yml'  # 워크플로우 파일 자체
-      - 'config/**'                       # Kubernetes 설정 파일
-      - 'test/e2e/**'                     # E2E 테스트 파일
-      - 'internal/**'                     # 내부 파일
   pull_request:
-    paths:
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'Makefile'
-      - '.github/workflows/test-e2e.yml'
-      - 'config/**'
-      - 'test/e2e/**'
-      - 'internal/**'                     
 
 jobs:
   test-e2e:
@@ -46,12 +28,6 @@ jobs:
 
       - name: Create kind cluster
         run: kind create cluster
-
-      - name: Install required tools
-        env:
-          GOOS: linux
-          GOARCH: amd64
-        run: make install-tools
 
       - name: Running Test e2e
         run: |
