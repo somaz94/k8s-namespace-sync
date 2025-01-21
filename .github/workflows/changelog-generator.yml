@@ -2,6 +2,7 @@ name: Generate changelog
 on:
   release:
     types: [created, edited]
+  workflow_dispatch:  
 
 jobs:
   generate-changelog:
@@ -15,12 +16,15 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         future-release: ${{ github.event.release.tag_name }}
+        base: CHANGELOG.md
+        output: CHANGELOG.md
+        since-tag: v0.0.1  # 첫 번째 release 태그
     - name: Commit files
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add CHANGELOG.md
-        git commit -m "Update changelog for ${{ github.event.release.tag_name }}"
+        git commit -m "Update changelog for all releases" || echo "No changes to commit"
     - name: Push changes
       uses: ad-m/github-push-action@master
       with:
