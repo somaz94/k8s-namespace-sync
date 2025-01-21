@@ -1,0 +1,28 @@
+name: Generate changelog
+on:
+  release:
+    types: [created, edited]
+
+jobs:
+  generate-changelog:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - name: Generate changelog
+      uses: github-changelog-generator/github-changelog-generator@v1.16.4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        future-release: ${{ github.event.release.tag_name }}
+    - name: Commit files
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add CHANGELOG.md
+        git commit -m "Update changelog for ${{ github.event.release.tag_name }}"
+    - name: Push changes
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: main
