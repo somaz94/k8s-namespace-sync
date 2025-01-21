@@ -12,7 +12,7 @@ jobs:
       with:
         fetch-depth: 0
     - name: Generate changelog
-      uses: github-changelog-generator/github-changelog-generator@v1.16.4
+      uses: github-changelog-generator/github-changelog-generator@v2.3
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         future-release: ${{ github.event.release.tag_name }}
