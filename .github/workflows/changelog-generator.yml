@@ -4,6 +4,10 @@ on:
     types: [created, edited]
   workflow_dispatch:  
 
+permissions: 
+  contents: write
+  pull-requests: write
+
 jobs:
   generate-changelog:
     runs-on: ubuntu-latest
@@ -23,7 +27,7 @@ jobs:
         futureRelease: ${{ github.event.release.tag_name || env.LATEST_TAG }}
         base: CHANGELOG.md
         output: CHANGELOG.md
-        sinceTag: v0.1.0  # 첫 번째 release 태그
+        sinceTag: v0.1.0  # first release tag
     - name: Commit files
       run: |
         git config --local user.email "action@github.com"
