@@ -14,7 +14,7 @@ jobs:
     - name: Get latest tag
       id: get_tag
       run: |
-        latest_tag=$(git describe --tags --abbrev=0 || echo "v0.0.1")
+        latest_tag=$(git describe --tags --abbrev=0 || echo "v0.1.0")
         echo "LATEST_TAG=$latest_tag" >> $GITHUB_ENV
     - name: Generate changelog
       uses: janheinrichmerker/action-github-changelog-generator@v2.3
@@ -23,7 +23,7 @@ jobs:
         futureRelease: ${{ github.event.release.tag_name || env.LATEST_TAG }}
         base: CHANGELOG.md
         output: CHANGELOG.md
-        sinceTag: v0.0.1  # 첫 번째 release 태그
+        sinceTag: v0.1.0  # 첫 번째 release 태그
     - name: Commit files
       run: |
         git config --local user.email "action@github.com"
