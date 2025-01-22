@@ -10,9 +10,11 @@ permissions:
 
 jobs:
   generate-changelog:
-    # runs-on: ubuntu-latest
-    runs-on: self-hosted
-    # runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
+
+    # # 둘다 가능 
+    # runs-on: self-hosted
+    # # runs-on: [self-hosted, linux, x64]
     steps:
     - uses: actions/checkout@v4
       with:
