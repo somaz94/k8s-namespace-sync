@@ -1,6 +1,7 @@
 module github.com/somaz94/k8s-namespace-sync
 
-go 1.22.0
+go 1.23.0
+
 toolchain go1.23.5
 
 require (
