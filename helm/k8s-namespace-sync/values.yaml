@@ -8,7 +8,7 @@ namespace: k8s-namespace-sync-system
 image:
   repository: somaz940/k8s-namespace-sync
   pullPolicy: IfNotPresent
-  tag: "v0.1.6"
+  tag: "v0.1.7"
 
 imagePullSecrets: []
 
