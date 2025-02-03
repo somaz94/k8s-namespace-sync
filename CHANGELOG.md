@@ -6,6 +6,7 @@
 
 **Merged pull requests:**
 
+- chore\(deps\): bump the go-minor group with 8 updates [\#3](https://github.com/somaz94/k8s-namespace-sync/pull/3) ([dependabot[bot]](https://github.com/apps/dependabot))
 - chore\(deps\): bump golang from 1.22 to 1.23 in the docker-minor group [\#2](https://github.com/somaz94/k8s-namespace-sync/pull/2) ([dependabot[bot]](https://github.com/apps/dependabot))
 - chore\(deps\): bump janheinrichmerker/action-github-changelog-generator from 2.3 to 2.4 in the actions-minor group [\#1](https://github.com/somaz94/k8s-namespace-sync/pull/1) ([dependabot[bot]](https://github.com/apps/dependabot))
 
