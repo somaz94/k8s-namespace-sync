@@ -33,7 +33,7 @@ jobs:
         latest_tag="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1)"
         echo "LATEST_TAG=${latest_tag}" >> "$GITHUB_ENV"
         # 첫 번째 태그는 v1.0.0으로 고정
-        echo "FIRST_TAG=v1.0.0" >> "$GITHUB_ENV"
+        echo "FIRST_TAG=v0.1.0" >> "$GITHUB_ENV"
 
     - name: Generate changelog
       uses: janheinrichmerker/action-github-changelog-generator@v2.4
