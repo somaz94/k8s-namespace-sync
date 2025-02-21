@@ -28,3 +28,5 @@ go.work.sum
 /bin/*
 !/bin/.gitignore
 !/bin/README.md
+
+.DS_Store

@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # 전체 히스토리를 가져오도록 설정
-          lfs: true      # Git LFS 파일도 가져오기
+          # lfs: true      # Git LFS 파일도 가져오기
           
       - name: Configure Git
         run: |
