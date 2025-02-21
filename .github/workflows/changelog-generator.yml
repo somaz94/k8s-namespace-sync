@@ -35,31 +35,15 @@ jobs:
         # 첫 번째 태그는 v1.0.0으로 고정
         echo "FIRST_TAG=v0.1.0" >> "$GITHUB_ENV"
 
-
     - name: Generate changelog
-      uses: github-changelog-generator/github-changelog-generator-action@v1
+      uses: janheinrichmerker/action-github-changelog-generator@v2.4
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
+        futureRelease: ${{ github.event.release.tag_name || env.LATEST_TAG }}
         output: CHANGELOG.md
-        sinceTag: ${{ env.FIRST_TAG }}
-        futureRelease: ${{ env.LATEST_TAG }}
-        stripGeneratorNotice: false
-        unreleased: true
-        unreleasedOnly: false
-        pullRequests: true
-        prWoLabels: true
-        issues: true
-        issuesWoLabels: true
-        filterByMilestone: false
-        compareLink: true
+        sinceTag: ${{ env.FIRST_TAG }}  # v1.0.0과 같은 구체적인 버전 태그
+        # excludeTags: "v1,v2"  # 명시적으로 제외할 태그
         excludeTagsRegex: "^v[0-9]$"
-        breakingLabel: '### ⚠️ Breaking Changes'
-        enhancementLabel: '### 🚀 Enhancements'
-        bugsLabel: '### 🐛 Bug Fixes'
-        securityLabel: '### 🔒 Security Fixes'
-        issuesLabel: '### ⚡ Issues'
-        prLabel: '### 🔍 Pull Requests'
-        addSections: '{"documentation":{"prefix":"### 📝 Documentation","labels":["documentation"]}}'
 
     - name: Git Commit and Push
       uses: somaz94/go-git-commit-action@v1
