@@ -44,6 +44,7 @@ jobs:
         sinceTag: ${{ env.FIRST_TAG }}  # v1.0.0과 같은 구체적인 버전 태그
         # excludeTags: "v1,v2"  # 명시적으로 제외할 태그
         excludeTagsRegex: "^v[0-9]$"
+        pullRequests: false
 
     - name: Git Commit and Push
       uses: somaz94/go-git-commit-action@v1
