@@ -32,14 +32,3 @@ jobs:
           git push -f --tags gitlab  # 모든 태그 푸시
         continue-on-error: true
 
-
-
-
-
-
-
-
-
-
-
-
