@@ -1,38 +1,8 @@
 # Changelog
 
-## [v0.1.7](https://github.com/somaz94/k8s-namespace-sync/tree/v0.1.7) (2025-02-03)
+## [v0.1.3](https://github.com/somaz94/k8s-namespace-sync/tree/v0.1.3) (2025-02-21)
 
-[Full Changelog](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.6...v0.1.7)
-
-**Merged pull requests:**
-
-- chore\(deps\): bump the go-minor group with 8 updates [\#3](https://github.com/somaz94/k8s-namespace-sync/pull/3) ([dependabot[bot]](https://github.com/apps/dependabot))
-- chore\(deps\): bump golang from 1.22 to 1.23 in the docker-minor group [\#2](https://github.com/somaz94/k8s-namespace-sync/pull/2) ([dependabot[bot]](https://github.com/apps/dependabot))
-- chore\(deps\): bump janheinrichmerker/action-github-changelog-generator from 2.3 to 2.4 in the actions-minor group [\#1](https://github.com/somaz94/k8s-namespace-sync/pull/1) ([dependabot[bot]](https://github.com/apps/dependabot))
-
-## [v0.1.6](https://github.com/somaz94/k8s-namespace-sync/tree/v0.1.6) (2024-12-20)
-
-[Full Changelog](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.5...v0.1.6)
-
-## [v0.1.5](https://github.com/somaz94/k8s-namespace-sync/tree/v0.1.5) (2024-12-12)
-
-[Full Changelog](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.4...v0.1.5)
-
-## [v0.1.4](https://github.com/somaz94/k8s-namespace-sync/tree/v0.1.4) (2024-12-06)
-
-[Full Changelog](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.3...v0.1.4)
-
-## [v0.1.3](https://github.com/somaz94/k8s-namespace-sync/tree/v0.1.3) (2024-12-06)
-
-[Full Changelog](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.2...v0.1.3)
-
-## [v0.1.2](https://github.com/somaz94/k8s-namespace-sync/tree/v0.1.2) (2024-12-06)
-
-[Full Changelog](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.1...v0.1.2)
-
-## [v0.1.1](https://github.com/somaz94/k8s-namespace-sync/tree/v0.1.1) (2024-12-05)
-
-[Full Changelog](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.0...v0.1.1)
+[Full Changelog](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.0...v0.1.3)
 
 
 
