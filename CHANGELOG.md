@@ -1,8 +1,16 @@
 # Changelog
 
-## [v0.1.3](https://github.com/somaz94/k8s-namespace-sync/tree/v0.1.3) (2025-02-21)
+## [v0.2.0](https://github.com/somaz94/k8s-namespace-sync/tree/v0.2.0) (2025-02-24)
 
-[Full Changelog](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.0...v0.1.3)
+[Full Changelog](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.1...v0.2.0)
+
+## [v0.1.1](https://github.com/somaz94/k8s-namespace-sync/tree/v0.1.1) (2025-02-21)
+
+[Full Changelog](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.2...v0.1.1)
+
+## [v0.1.2](https://github.com/somaz94/k8s-namespace-sync/tree/v0.1.2) (2025-02-21)
+
+[Full Changelog](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.0...v0.1.2)
 
 
 
