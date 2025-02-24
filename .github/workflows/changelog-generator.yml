@@ -38,11 +38,10 @@ jobs:
     - name: Setup PR references (Error Compilation)
       run: |
         cat > .github_changelog_generator << EOF
-        # PR merge commit mapping
-        b953138 Merge pull request #4 from somaz94/dependabot/docker/docker-minor-d64fdf9ab1
-        16f9da9 Merge pull request #3 from somaz94/dependabot/go_modules/go-minor-762eb6c3e9
-        f42c3be Merge pull request #2 from somaz94/dependabot/docker/docker-minor-2acab4d306
-        d365d21 Merge pull request #1 from somaz94/dependabot/github_actions/actions-minor-be37afbc6d
+        pr_4.sha=b953138
+        pr_3.sha=16f9da9
+        pr_2.sha=f42c3be
+        pr_1.sha=d365d21
         EOF
 
     - name: Generate changelog
