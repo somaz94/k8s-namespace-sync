@@ -35,15 +35,6 @@ jobs:
         # 첫 번째 태그는 v1.0.0으로 고정
         echo "FIRST_TAG=v0.1.0" >> "$GITHUB_ENV"
 
-    - name: Setup PR references (Error Compilation)
-      run: |
-        cat > .github_changelog_generator << EOF
-        pr_4.sha=b953138
-        pr_3.sha=16f9da9
-        pr_2.sha=f42c3be
-        pr_1.sha=d365d21
-        EOF
-
     - name: Generate changelog
       uses: janheinrichmerker/action-github-changelog-generator@v2.4
       with:
