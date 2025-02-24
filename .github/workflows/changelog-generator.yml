@@ -35,6 +35,16 @@ jobs:
         # 첫 번째 태그는 v1.0.0으로 고정
         echo "FIRST_TAG=v0.1.0" >> "$GITHUB_ENV"
 
+    - name: Setup PR references (Error Compilation)
+      run: |
+        cat > .github_changelog_generator << EOF
+        # PR merge commit mapping
+        b953138 Merge pull request #4 from somaz94/dependabot/docker/docker-minor-d64fdf9ab1
+        16f9da9 Merge pull request #3 from somaz94/dependabot/go_modules/go-minor-762eb6c3e9
+        f42c3be Merge pull request #2 from somaz94/dependabot/docker/docker-minor-2acab4d306
+        d365d21 Merge pull request #1 from somaz94/dependabot/github_actions/actions-minor-be37afbc6d
+        EOF
+
     - name: Generate changelog
       uses: janheinrichmerker/action-github-changelog-generator@v2.4
       with:
