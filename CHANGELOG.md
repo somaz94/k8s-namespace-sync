@@ -1,11 +1,13 @@
 # Changelog
 
-## [v0.2.0](https://github.com/somaz94/k8s-namespace-sync/tree/v0.2.0) (2025-04-14)
+## [v0.2.0](https://github.com/somaz94/k8s-namespace-sync/tree/v0.2.0) (2025-05-07)
 
 [Full Changelog](https://github.com/somaz94/k8s-namespace-sync/compare/v0.2.0...v0.2.0)
 
 **Merged pull requests:**
 
+- chore\(deps\): bump golangci/golangci-lint-action from 7 to 8 [\#15](https://github.com/somaz94/k8s-namespace-sync/pull/15) ([dependabot[bot]](https://github.com/apps/dependabot))
+- chore\(deps\): bump the go-minor group with 3 updates [\#14](https://github.com/somaz94/k8s-namespace-sync/pull/14) ([dependabot[bot]](https://github.com/apps/dependabot))
 - chore\(deps\): bump github.com/prometheus/client\_golang from 1.21.1 to 1.22.0 in the go-minor group [\#13](https://github.com/somaz94/k8s-namespace-sync/pull/13) ([dependabot[bot]](https://github.com/apps/dependabot))
 - chore\(deps\): bump the go-minor group with 2 updates [\#12](https://github.com/somaz94/k8s-namespace-sync/pull/12) ([dependabot[bot]](https://github.com/apps/dependabot))
 - chore\(deps\): bump sigs.k8s.io/controller-runtime from 0.20.3 to 0.20.4 in the go-minor group [\#11](https://github.com/somaz94/k8s-namespace-sync/pull/11) ([dependabot[bot]](https://github.com/apps/dependabot))
