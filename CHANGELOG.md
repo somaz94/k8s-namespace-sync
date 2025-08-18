@@ -6,6 +6,7 @@
 
 **Merged pull requests:**
 
+- chore\(deps\): bump golang from 1.24 to 1.25 in the docker-minor group [\#23](https://github.com/somaz94/k8s-namespace-sync/pull/23) ([dependabot[bot]](https://github.com/apps/dependabot))
 - chore\(deps\): bump actions/checkout from 4 to 5 [\#22](https://github.com/somaz94/k8s-namespace-sync/pull/22) ([dependabot[bot]](https://github.com/apps/dependabot))
 - chore\(deps\): bump the go-minor group across 1 directory with 5 updates [\#21](https://github.com/somaz94/k8s-namespace-sync/pull/21) ([dependabot[bot]](https://github.com/apps/dependabot))
 - chore\(deps\): bump the go-minor group across 1 directory with 4 updates [\#18](https://github.com/somaz94/k8s-namespace-sync/pull/18) ([dependabot[bot]](https://github.com/apps/dependabot))
