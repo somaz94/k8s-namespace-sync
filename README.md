@@ -5,6 +5,8 @@
 
 K8s Namespace Sync is a Kubernetes controller that automatically synchronizes Secrets and ConfigMaps across multiple namespaces within a Kubernetes cluster.
 
+<br/>
+
 ## Features
 
 - Automatic synchronization of Secrets and ConfigMaps across namespaces
@@ -17,6 +19,8 @@ K8s Namespace Sync is a Kubernetes controller that automatically synchronizes Se
 - Resource filtering support with glob pattern matching
 - Selective resource synchronization based on name patterns
 
+<br/>
+
 ## How it Works
 
 The controller:
@@ -25,10 +29,14 @@ The controller:
 3. Maintains consistency by cleaning up resources when source is deleted
 4. Uses finalizers to ensure proper cleanup during deletion
 
+<br/>
+
 ## Installation
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/install.yaml
 ```
+
+<br/>
 
 ## Usage
 
@@ -62,6 +70,8 @@ kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/ma
 kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/test-configmap-secret/test-secret.yaml
 kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/test-configmap-secret/test-secret2.yaml
 ```
+
+<br/>
 
 ### 2. Create a NamespaceSync CR:
 
@@ -238,6 +248,8 @@ kubectl get secret,configmap -n <another-namespace>
 kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/examples/sync_v1_namespacesync_filter.yaml
 ```
 
+<br/>
+
 ### Sync Behavior
 - If `targetNamespaces` is not specified, resources will be synced to all namespaces (except excluded ones)
 - If `targetNamespaces` is specified, resources will only be synced to the listed namespaces
@@ -249,6 +261,8 @@ kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/m
 - When the NamespaceSync CR is deleted, all synced resources are automatically cleaned up
 - Finalizer ensures proper cleanup of synced resources before CR deletion
 
+<br/>
+
 ### Resource Filtering
 - Supports both include and exclude patterns for ConfigMaps and Secrets
 - Uses glob pattern matching (e.g., "*" for any characters)
@@ -258,7 +272,11 @@ kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/m
 - Patterns are matched against resource names
 - Can be combined with namespace targeting and exclusion
 
+<br/>
+
 ## Verification
+
+<br/>
 
 ### 1. Check synchronization status:
 
@@ -266,12 +284,16 @@ kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/m
 kubectl get namespacesync namespacesync-sample -o yaml
 ```
 
+<br/>
+
 ### 2. Verify resources in other namespaces:
 
 ```bash
 kubectl get secret test-secret -n target-namespace
 kubectl get configmap test-configmap -n target-namespace
 ```
+
+<br/>
 
 ## Excluded Namespaces
 
@@ -282,6 +304,8 @@ The following namespaces are automatically excluded from synchronization:
 - k8s-namespace-sync-system
 
 Additionally, you can manually exclude specific namespaces using the `exclude` field in the NamespaceSync CR.
+
+<br/>
 
 ## Troubleshooting
 
@@ -299,6 +323,8 @@ Common issues and solutions:
 3. **Cleanup issues:**
    - Ensure finalizer is present in CR
    - Check controller logs for cleanup errors
+
+<br/>
 
 ## Cleanup
 
@@ -357,9 +383,13 @@ Manual installation locations:
 
 Note: The binary directory (`./bin`) is git-ignored and will be created when needed.
 
+<br/>
+
 ## Contributing
 
 Issues and pull requests are welcome.
+
+<br/>
 
 ## License
 
