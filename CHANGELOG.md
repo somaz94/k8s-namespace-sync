@@ -6,6 +6,7 @@
 
 **Merged pull requests:**
 
+- chore\(deps\): bump actions/checkout from 5 to 6 [\#31](https://github.com/somaz94/k8s-namespace-sync/pull/31) ([dependabot[bot]](https://github.com/apps/dependabot))
 - chore\(deps\): bump the go-minor group with 6 updates [\#30](https://github.com/somaz94/k8s-namespace-sync/pull/30) ([dependabot[bot]](https://github.com/apps/dependabot))
 - chore\(deps\): bump golangci/golangci-lint-action from 8 to 9 [\#29](https://github.com/somaz94/k8s-namespace-sync/pull/29) ([dependabot[bot]](https://github.com/apps/dependabot))
 - chore\(deps\): bump the go-minor group across 1 directory with 6 updates [\#28](https://github.com/somaz94/k8s-namespace-sync/pull/28) ([dependabot[bot]](https://github.com/apps/dependabot))
