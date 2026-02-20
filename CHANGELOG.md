@@ -1,11 +1,12 @@
 # Changelog
 
-## [v0.2.0](https://github.com/somaz94/k8s-namespace-sync/tree/v0.2.0) (2025-12-24)
+## [v0.2.0](https://github.com/somaz94/k8s-namespace-sync/tree/v0.2.0) (2026-02-20)
 
 [Full Changelog](https://github.com/somaz94/k8s-namespace-sync/compare/v0.2.0...v0.2.0)
 
 **Merged pull requests:**
 
+- chore\(deps\): bump golang from 1.25 to 1.26 in the docker-minor group [\#36](https://github.com/somaz94/k8s-namespace-sync/pull/36) ([dependabot[bot]](https://github.com/apps/dependabot))
 - chore\(deps\): bump the go-minor group with 3 updates [\#33](https://github.com/somaz94/k8s-namespace-sync/pull/33) ([dependabot[bot]](https://github.com/apps/dependabot))
 - chore\(deps\): bump the go-minor group with 5 updates [\#32](https://github.com/somaz94/k8s-namespace-sync/pull/32) ([dependabot[bot]](https://github.com/apps/dependabot))
 - chore\(deps\): bump actions/checkout from 5 to 6 [\#31](https://github.com/somaz94/k8s-namespace-sync/pull/31) ([dependabot[bot]](https://github.com/apps/dependabot))
