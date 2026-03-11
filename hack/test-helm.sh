@@ -285,13 +285,9 @@ log_info "--- Cleanup ---"
 cleanup_test_resources
 
 log_info "Uninstalling Helm release..."
-helm uninstall "${RELEASE_NAME}" --wait --timeout 120s 2>/dev/null || \
-  helm uninstall "${RELEASE_NAME}" --no-hooks 2>/dev/null || true
-
-# Clean up CRD if still exists
-if kubectl get crd namespacesyncs.sync.nsync.dev >/dev/null 2>&1; then
-  log_info "CRD still exists (cleanup hook may need cluster permissions)"
-fi
+# Delete CRD manually before uninstall to avoid cleanup hook hang
+kubectl delete crd namespacesyncs.sync.nsync.dev --ignore-not-found 2>/dev/null || true
+helm uninstall "${RELEASE_NAME}" --no-hooks 2>/dev/null || true
 
 kubectl delete ns "${NAMESPACE}" --ignore-not-found 2>/dev/null || true
 
