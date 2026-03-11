@@ -2,6 +2,8 @@
 
 When releasing a new version, update the following files:
 
+<br/>
+
 ## Required Files
 
 | File | Field | Example |
@@ -13,11 +15,15 @@ When releasing a new version, update the following files:
 | `config/manager/kustomization.yaml` | `newTag` | `v0.2.0` |
 | `release/install.yaml` | `image:` (rebuild with `make build-installer`) | `v0.2.0` |
 
+<br/>
+
 ## Documentation Files
 
 | File | Location | Note |
 |------|----------|------|
 | `docs/HELM.md` | Configuration table (`image.tag` default) | Update default value |
+
+<br/>
 
 ## Release Steps
 
