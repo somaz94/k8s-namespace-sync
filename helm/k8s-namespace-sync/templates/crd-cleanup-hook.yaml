@@ -1,27 +1,70 @@
 {{- if and .Values.crds.create .Values.crds.remove }}
-apiVersion: batch/v1
-kind: Job
+---
+apiVersion: v1
+kind: ServiceAccount
 metadata:
   name: {{ include "k8s-namespace-sync.fullname" . }}-crd-cleanup
   namespace: {{ .Values.namespace }}
   annotations:
     "helm.sh/hook": pre-delete
-    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed,before-hook-creation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "k8s-namespace-sync.fullname" . }}-crd-cleanup
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed,before-hook-creation
+rules:
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "k8s-namespace-sync.fullname" . }}-crd-cleanup
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed,before-hook-creation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "k8s-namespace-sync.fullname" . }}-crd-cleanup
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "k8s-namespace-sync.fullname" . }}-crd-cleanup
+    namespace: {{ .Values.namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "k8s-namespace-sync.fullname" . }}-crd-cleanup
+  namespace: {{ .Values.namespace }}
   labels:
     {{- include "k8s-namespace-sync.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed,before-hook-creation
 spec:
   template:
     metadata:
       name: {{ include "k8s-namespace-sync.fullname" . }}-crd-cleanup
     spec:
-      serviceAccountName: {{ include "k8s-namespace-sync.serviceAccountName" . }}
+      serviceAccountName: {{ include "k8s-namespace-sync.fullname" . }}-crd-cleanup
       containers:
       - name: kubectl
-        image: bitnami/kubectl
+        image: bitnami/kubectl:latest
         command:
         - /bin/sh
         - -c
         - |
           kubectl delete crd namespacesyncs.sync.nsync.dev --ignore-not-found
       restartPolicy: Never
+  backoffLimit: 1
 {{- end }}
