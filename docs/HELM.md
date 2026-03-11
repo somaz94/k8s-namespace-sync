@@ -35,7 +35,7 @@ The following table lists the configurable parameters of the k8s-namespace-sync 
 | `nameOverride` | Override the name of the chart | `""` |
 | `fullnameOverride` | Override the full name of the chart | `""` |
 | `image.repository` | Controller image repository | `somaz940/k8s-namespace-sync` |
-| `image.tag` | Controller image tag | `v0.1.6` |
+| `image.tag` | Controller image tag | `v0.2.1` |
 | `image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `imagePullSecrets` | Image pull secrets | `[]` |
 | `serviceAccount.create` | Create ServiceAccount | `true` |
