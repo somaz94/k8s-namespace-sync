@@ -85,6 +85,7 @@ log_info "Installing chart via Helm..."
 
 # Clean up any stuck release
 helm uninstall "${RELEASE_NAME}" --no-hooks 2>/dev/null || true
+kubectl delete crd namespacesyncs.sync.nsync.dev --ignore-not-found 2>/dev/null || true
 kubectl delete ns "${NAMESPACE}" --ignore-not-found 2>/dev/null || true
 sleep 3
 
