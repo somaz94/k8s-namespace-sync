@@ -80,6 +80,14 @@ test-e2e: manifests generate fmt vet ## Run the e2e tests. Expected an isolated 
 	}
 	go test ./test/e2e/ -v -ginkgo.v
 
+.PHONY: test-integration
+test-integration: ## Run integration tests against a live cluster.
+	@bash hack/test-integration.sh
+
+.PHONY: test-helm
+test-helm: ## Run Helm chart tests (lint, install, sync tests, uninstall).
+	@bash hack/test-helm.sh
+
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter
 	$(GOLANGCI_LINT) run
