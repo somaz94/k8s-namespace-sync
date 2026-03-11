@@ -82,17 +82,29 @@ if ! kubectl cluster-info >/dev/null 2>&1; then
 fi
 log_pass "Kubernetes cluster is accessible"
 
+# Auto-install CRD if not found
 if ! kubectl get crd namespacesyncs.sync.nsync.dev >/dev/null 2>&1; then
-  log_fail "NamespaceSync CRD not found. Run 'make install' or 'make deploy' first."
-  exit 1
+  log_info "NamespaceSync CRD not found. Installing with 'make install'..."
+  make install
+  if ! kubectl get crd namespacesyncs.sync.nsync.dev >/dev/null 2>&1; then
+    log_fail "Failed to install NamespaceSync CRD"
+    exit 1
+  fi
 fi
 log_pass "NamespaceSync CRD is installed"
 
-# Check controller is running
+# Auto-deploy controller if not running
 CONTROLLER_POD=$(kubectl get pods -n "$NAMESPACE" -l control-plane=controller-manager -o name 2>/dev/null | head -1)
 if [ -z "$CONTROLLER_POD" ]; then
-  log_fail "Controller pod not found in ${NAMESPACE}"
-  exit 1
+  log_info "Controller not found. Deploying with 'make deploy'..."
+  make deploy IMG="$(grep '^IMG ?=' Makefile | awk -F'= ' '{print $2}')"
+  log_info "Waiting for controller to be ready..."
+  kubectl wait --for=condition=ready pod -l control-plane=controller-manager -n "$NAMESPACE" --timeout=120s 2>/dev/null || true
+  CONTROLLER_POD=$(kubectl get pods -n "$NAMESPACE" -l control-plane=controller-manager -o name 2>/dev/null | head -1)
+  if [ -z "$CONTROLLER_POD" ]; then
+    log_fail "Failed to deploy controller in ${NAMESPACE}"
+    exit 1
+  fi
 fi
 log_pass "Controller pod is running"
 
