@@ -385,6 +385,15 @@ Note: The binary directory (`./bin`) is git-ignored and will be created when nee
 
 <br/>
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Helm Chart](docs/HELM.md) | Helm chart installation, configuration, and values reference |
+| [Version Bump](docs/VERSION_BUMP.md) | Checklist for releasing a new version |
+
+<br/>
+
 ## Contributing
 
 Issues and pull requests are welcome.
