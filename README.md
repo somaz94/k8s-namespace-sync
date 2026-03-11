@@ -390,7 +390,9 @@ Note: The binary directory (`./bin`) is git-ignored and will be created when nee
 | Document | Description |
 |----------|-------------|
 | [Helm Chart](docs/HELM.md) | Helm chart installation, configuration, and values reference |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and solutions |
 | [Version Bump](docs/VERSION_BUMP.md) | Checklist for releasing a new version |
+| [Contributing](CONTRIBUTING.md) | How to contribute to this project |
 
 <br/>
 
