@@ -22,7 +22,7 @@ func (r *NamespaceSyncReconciler) syncResources(ctx context.Context, namespaceSy
 
 	// Sync Secrets
 	if namespaceSync.Spec.ResourceFilters == nil || namespaceSync.Spec.ResourceFilters.Secrets == nil {
-		// 기존 로직 유지
+		// Keep existing logic
 		for _, secretName := range namespaceSync.Spec.SecretName {
 			if err := r.syncSecret(ctx, namespaceSync.Spec.SourceNamespace, targetNamespace, secretName); err != nil {
 				log.Error(err, "Failed to sync secret",
@@ -35,7 +35,7 @@ func (r *NamespaceSyncReconciler) syncResources(ctx context.Context, namespaceSy
 				"targetNamespace", targetNamespace)
 		}
 	} else {
-		// 필터링 적용
+		// Apply filtering
 		for _, secretName := range namespaceSync.Spec.SecretName {
 			if r.shouldSyncResource(secretName, namespaceSync.Spec.ResourceFilters.Secrets) {
 				if err := r.syncSecret(ctx, namespaceSync.Spec.SourceNamespace, targetNamespace, secretName); err != nil {
@@ -53,7 +53,7 @@ func (r *NamespaceSyncReconciler) syncResources(ctx context.Context, namespaceSy
 
 	// Sync ConfigMaps
 	if namespaceSync.Spec.ResourceFilters == nil || namespaceSync.Spec.ResourceFilters.ConfigMaps == nil {
-		// 기존 로직 유지
+		// Keep existing logic
 		for _, configMapName := range namespaceSync.Spec.ConfigMapName {
 			if err := r.syncConfigMap(ctx, namespaceSync, targetNamespace, configMapName); err != nil {
 				log.Error(err, "Failed to sync configmap",
@@ -66,7 +66,7 @@ func (r *NamespaceSyncReconciler) syncResources(ctx context.Context, namespaceSy
 				"targetNamespace", targetNamespace)
 		}
 	} else {
-		// 필터링 적용
+		// Apply filtering
 		for _, configMapName := range namespaceSync.Spec.ConfigMapName {
 			if r.shouldSyncResource(configMapName, namespaceSync.Spec.ResourceFilters.ConfigMaps) {
 				if err := r.syncConfigMap(ctx, namespaceSync, targetNamespace, configMapName); err != nil {

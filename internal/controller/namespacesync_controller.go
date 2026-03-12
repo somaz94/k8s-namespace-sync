@@ -146,7 +146,7 @@ func (r *NamespaceSyncReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	logger := log.Log.WithName("namespacesync-controller")
 	logger.Info("Setting up controller manager")
 
-	// 네임스페이스 이벤트를 위한 인덱서 설정
+	// Set up the indexer for namespace events
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &syncv1.NamespaceSync{}, ".spec.sourceNamespace", func(rawObj client.Object) []string {
 		namespaceSync := rawObj.(*syncv1.NamespaceSync)
 		return []string{namespaceSync.Spec.SourceNamespace}

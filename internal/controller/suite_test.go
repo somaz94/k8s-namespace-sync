@@ -110,7 +110,7 @@ var _ = BeforeSuite(func(ctx context.Context) {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
-	// 컨트롤러 매니저 설정
+	// Set up the controller manager
 	k8sManager, err = ctrl.NewManager(cfg, ctrl.Options{
 		Scheme: scheme.Scheme,
 		Metrics: server.Options{
@@ -120,14 +120,14 @@ var _ = BeforeSuite(func(ctx context.Context) {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	// 컨트롤러 설정
+	// Set up the controller
 	err = (&NamespaceSyncReconciler{
 		Client: k8sManager.GetClient(),
 		Scheme: k8sManager.GetScheme(),
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
-	// 매니저 시작
+	// Start the manager
 	go func() {
 		defer GinkgoRecover()
 		err = k8sManager.Start(ctx)
@@ -139,18 +139,18 @@ var _ = AfterSuite(func(ctx SpecContext) {
 	By("tearing down the test environment")
 	cancel()
 
-	// 컨텍스트 타임아웃 설정
+	// Set up context timeout
 	cleanupCtx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
-	// goroutine으로 testEnv.Stop() 실행
+	// Run testEnv.Stop() in a goroutine
 	done := make(chan error)
 	go func() {
 		done <- testEnv.Stop()
 		close(done)
 	}()
 
-	// 타임아웃 또는 완료 대기
+	// Wait for timeout or completion
 	select {
 	case err := <-done:
 		if err != nil {

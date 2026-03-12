@@ -103,7 +103,7 @@ type NamespaceSyncReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// 상수 정의 부분에 다시 추가
+// Re-add to the constants definition section
 const finalizerName = "namespacesync.nsync.dev/finalizer"
 
 func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -115,7 +115,7 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	err := r.Get(ctx, req.NamespacedName, namespacesync)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			// 리소스가 이미 삭제됨
+			// Resource has already been deleted
 			log.Info("NamespaceSync resource not found. Ignoring since object must be deleted")
 			return ctrl.Result{}, nil
 		}
@@ -224,16 +224,16 @@ func (r *NamespaceSyncReconciler) handleDeletionAndStatus(ctx context.Context, n
 	log := log.FromContext(ctx)
 
 	if controllerutil.ContainsFinalizer(namespacesync, finalizerName) {
-		// 동기화된 리소스 정리
+		// Clean up synced resources
 		if err := r.cleanupSyncedResources(ctx, namespacesync); err != nil {
 			log.Error(err, "Failed to cleanup resources")
 			return ctrl.Result{}, err
 		}
 
-		// Finalizer 제거
+		// Remove the finalizer
 		controllerutil.RemoveFinalizer(namespacesync, finalizerName)
 		if err := r.Update(ctx, namespacesync); err != nil {
-			// 리소스가 이미 삭제된 경우 무시
+			// Ignore if the resource has already been deleted
 			if errors.IsNotFound(err) {
 				return ctrl.Result{}, nil
 			}
@@ -306,17 +306,17 @@ func (r *NamespaceSyncReconciler) isSystemNamespace(namespace string) bool {
 
 // shouldSkipNamespace checks if the namespace should be skipped for synchronization
 func (r *NamespaceSyncReconciler) shouldSkipNamespace(namespace, sourceNamespace string, excludedNamespaces []string) bool {
-	// 시스템 네임스페이스 체크
+	// Check if it is a system namespace
 	if r.isSystemNamespace(namespace) {
 		return true
 	}
 
-	// 소스 네임스페이스와 동일한 경우 스킵
+	// Skip if it is the same as the source namespace
 	if namespace == sourceNamespace {
 		return true
 	}
 
-	// 제외된 네임스페이스 목록에 포함되어 있는지 체크
+	// Check if the namespace is in the excluded namespaces list
 	return contains(excludedNamespaces, namespace)
 }
 
@@ -325,7 +325,7 @@ func (r *NamespaceSyncReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	logger := log.Log.WithName("namespacesync-controller")
 	logger.Info("Setting up controller manager")
 
-	// 네임스페이스 이벤트를 위한 인덱서 설정
+	// Set up the indexer for namespace events
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &syncv1.NamespaceSync{}, ".spec.sourceNamespace", func(rawObj client.Object) []string {
 		namespaceSync := rawObj.(*syncv1.NamespaceSync)
 		return []string{namespaceSync.Spec.SourceNamespace}
@@ -353,16 +353,16 @@ func (r *NamespaceSyncReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return true
 			},
 		}).
-		// 네임스페이스 변경 감시
+		// Watch for namespace changes
 		Watches(&corev1.Namespace{}, handler.EnqueueRequestsFromMapFunc(r.findNamespaceSyncs)).
-		// Secret 변경 감시 추가
+		// Watch for Secret changes
 		Watches(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(r.findNamespaceSyncsForSecret)).
-		// ConfigMap 변경 감 추가
+		// Watch for ConfigMap changes
 		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(r.findNamespaceSyncsForConfigMap)).
 		Complete(r)
 }
 
-// Secret 변경시 관련된 NamespaceSync 찾기
+// Find related NamespaceSync resources when a Secret changes
 func (r *NamespaceSyncReconciler) findNamespaceSyncsForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
 	secret := obj.(*corev1.Secret)
 	var namespaceSyncs syncv1.NamespaceSyncList
@@ -388,7 +388,7 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncsForSecret(ctx context.Contex
 	return requests
 }
 
-// ConfigMap 변경시 관련된 NamespaceSync 찾기
+// Find related NamespaceSync resources when a ConfigMap changes
 func (r *NamespaceSyncReconciler) findNamespaceSyncsForConfigMap(ctx context.Context, obj client.Object) []reconcile.Request {
 	configMap := obj.(*corev1.ConfigMap)
 	var namespaceSyncs syncv1.NamespaceSyncList
@@ -417,7 +417,7 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncsForConfigMap(ctx context.Con
 func (r *NamespaceSyncReconciler) updateStatus(ctx context.Context, namespaceSync *syncv1.NamespaceSync, syncedNamespaces []string, failedNamespaces map[string]string) error {
 	log := log.Log.WithValues("resource", namespaceSync.Name, "namespace", namespaceSync.Namespace)
 
-	// 리소스가 삭제 중인지 확인
+	// Check if the resource is being deleted
 	if namespaceSync.DeletionTimestamp != nil {
 		log.Info("Resource is being deleted, skipping status update")
 		return nil
@@ -486,7 +486,7 @@ func (r *NamespaceSyncReconciler) syncResources(ctx context.Context, namespaceSy
 
 	// Sync Secrets
 	if namespaceSync.Spec.ResourceFilters == nil || namespaceSync.Spec.ResourceFilters.Secrets == nil {
-		// 기존 로직 유지
+		// Keep existing logic
 		for _, secretName := range namespaceSync.Spec.SecretName {
 			if err := r.syncSecret(ctx, namespaceSync.Spec.SourceNamespace, targetNamespace, secretName); err != nil {
 				log.Error(err, "Failed to sync secret",
@@ -499,7 +499,7 @@ func (r *NamespaceSyncReconciler) syncResources(ctx context.Context, namespaceSy
 				"targetNamespace", targetNamespace)
 		}
 	} else {
-		// 필터링 적용
+		// Apply filtering
 		for _, secretName := range namespaceSync.Spec.SecretName {
 			if r.shouldSyncResource(secretName, namespaceSync.Spec.ResourceFilters.Secrets) {
 				if err := r.syncSecret(ctx, namespaceSync.Spec.SourceNamespace, targetNamespace, secretName); err != nil {
@@ -517,7 +517,7 @@ func (r *NamespaceSyncReconciler) syncResources(ctx context.Context, namespaceSy
 
 	// Sync ConfigMaps
 	if namespaceSync.Spec.ResourceFilters == nil || namespaceSync.Spec.ResourceFilters.ConfigMaps == nil {
-		// 기존 로직 유지
+		// Keep existing logic
 		for _, configMapName := range namespaceSync.Spec.ConfigMapName {
 			log.Info("Starting ConfigMap sync",
 				"configMap", configMapName,
@@ -535,7 +535,7 @@ func (r *NamespaceSyncReconciler) syncResources(ctx context.Context, namespaceSy
 				"targetNamespace", targetNamespace)
 		}
 	} else {
-		// 필터링 적용
+		// Apply filtering
 		for _, configMapName := range namespaceSync.Spec.ConfigMapName {
 			if r.shouldSyncResource(configMapName, namespaceSync.Spec.ResourceFilters.ConfigMaps) {
 				log.Info("Starting ConfigMap sync",
@@ -651,7 +651,7 @@ func (r *NamespaceSyncReconciler) copyLabelsAndAnnotations(src, dst *metav1.Obje
 		dst.Annotations = make(map[string]string)
 	}
 
-	// 소스에서 메타데이 사
+	// Copy metadata from the source
 	for k, v := range src.Labels {
 		if !strings.HasPrefix(k, "kubernetes.io/") {
 			dst.Labels[k] = v
@@ -663,13 +663,13 @@ func (r *NamespaceSyncReconciler) copyLabelsAndAnnotations(src, dst *metav1.Obje
 		}
 	}
 
-	// 소스 추적 정보 추가
+	// Add source tracking information
 	dst.Annotations["namespacesync.nsync.dev/source-namespace"] = src.Namespace
 	dst.Annotations["namespacesync.nsync.dev/source-name"] = src.Name
 	dst.Annotations["namespacesync.nsync.dev/last-sync"] = time.Now().Format(time.RFC3339)
 }
 
-// 임스페이스 변경시 관련된 NamespaceSync 찾기
+// Find related NamespaceSync resources when a namespace changes
 func (r *NamespaceSyncReconciler) findNamespaceSyncs(ctx context.Context, obj client.Object) []reconcile.Request {
 	log := log.Log.WithValues("namespace", obj.(*corev1.Namespace).Name)
 	namespace := obj.(*corev1.Namespace)
@@ -681,7 +681,7 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncs(ctx context.Context, obj cl
 
 	var requests []reconcile.Request
 	for _, ns := range namespaceSyncs.Items {
-		// 1. 소스 네임스페이가 변경된 경우
+		// 1. If the source namespace was changed
 		if namespace.Name == ns.Spec.SourceNamespace {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: types.NamespacedName{
@@ -694,7 +694,7 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncs(ctx context.Context, obj cl
 				"namespace", namespace.Name)
 		}
 
-		// 2. 상 네임스페이스가 생성/수정된 경우
+		// 2. If a target namespace was created/modified
 		if !r.shouldSkipNamespace(namespace.Name, ns.Spec.SourceNamespace, ns.Spec.Exclude) {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: types.NamespacedName{
@@ -711,7 +711,7 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncs(ctx context.Context, obj cl
 	return requests
 }
 
-// 리소스 정리를 위 헬퍼 함수
+// Helper function for resource cleanup
 func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, namespaceSync *syncv1.NamespaceSync) error {
 	log := log.FromContext(ctx)
 	log.Info("Starting cleanup of synced resources")
@@ -797,7 +797,7 @@ func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, na
 // 	return false
 // }
 
-// syncConfigMap 함수 수정 (configMapName 파라터 추가)
+// syncConfigMap function (with added configMapName parameter)
 func (r *NamespaceSyncReconciler) syncConfigMap(ctx context.Context, namespaceSync *syncv1.NamespaceSync, targetNamespace, configMapName string) error {
 	log := log.FromContext(ctx)
 
@@ -836,7 +836,7 @@ func (r *NamespaceSyncReconciler) syncConfigMap(ctx context.Context, namespaceSy
 	return nil
 }
 
-// syncSecret 함수 수정
+// syncSecret function
 func (r *NamespaceSyncReconciler) syncSecret(ctx context.Context, sourceNamespace, targetNamespace, secretName string) error {
 	log := log.Log.WithValues(
 		"secret", secretName,
@@ -932,27 +932,27 @@ func contains(slice []string, item string) bool {
 }
 
 func (r *NamespaceSyncReconciler) shouldSyncToNamespace(namespace string, namespaceSync *syncv1.NamespaceSync) bool {
-	// 시스템 네임스페이스 체크
+	// Check if it is a system namespace
 	if r.isSystemNamespace(namespace) {
 		return false
 	}
 
-	// 소스 네임스페이스와 동일한 경우 스킵
+	// Skip if it is the same as the source namespace
 	if namespace == namespaceSync.Spec.SourceNamespace {
 		return false
 	}
 
-	// 제외 목록에 있는 경우 스킵
+	// Skip if the namespace is in the exclude list
 	if contains(namespaceSync.Spec.Exclude, namespace) {
 		return false
 	}
 
-	// targetNamespaces가 지정된 경우, 해당 목록에 있는 네임스페이스만 동기화
+	// If targetNamespaces is specified, only sync to namespaces in that list
 	if len(namespaceSync.Spec.TargetNamespaces) > 0 {
 		return contains(namespaceSync.Spec.TargetNamespaces, namespace)
 	}
 
-	// targetNamespaces가 지정되지 않은 경우 모든 네임스페이스에 동기화
+	// If targetNamespaces is not specified, sync to all namespaces
 	return true
 }
 
@@ -961,7 +961,7 @@ func (r *NamespaceSyncReconciler) shouldSyncResource(name string, filter *syncv1
 		return true
 	}
 
-	// 먼저 exclude 패턴 체크
+	// Check exclude patterns first
 	for _, pattern := range filter.Exclude {
 		matched, err := filepath.Match(pattern, name)
 		if err == nil && matched {
@@ -969,12 +969,12 @@ func (r *NamespaceSyncReconciler) shouldSyncResource(name string, filter *syncv1
 		}
 	}
 
-	// include 패턴이 없으면 모든 리소스 포함
+	// If there are no include patterns, include all resources
 	if len(filter.Include) == 0 {
 		return true
 	}
 
-	// include 패턴 체크
+	// Check include patterns
 	for _, pattern := range filter.Include {
 		matched, err := filepath.Match(pattern, name)
 		if err == nil && matched {

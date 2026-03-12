@@ -14,7 +14,7 @@ func (r *NamespaceSyncReconciler) shouldSyncResource(name string, filter *syncv1
 		return true
 	}
 
-	// 먼저 exclude 패턴 체크
+	// Check exclude patterns first
 	for _, pattern := range filter.Exclude {
 		matched, err := filepath.Match(pattern, name)
 		if err == nil && matched {
@@ -22,12 +22,12 @@ func (r *NamespaceSyncReconciler) shouldSyncResource(name string, filter *syncv1
 		}
 	}
 
-	// include 패턴이 없으면 모든 리소스 포함
+	// If there are no include patterns, include all resources
 	if len(filter.Include) == 0 {
 		return true
 	}
 
-	// include 패턴 체크
+	// Check include patterns
 	for _, pattern := range filter.Include {
 		matched, err := filepath.Match(pattern, name)
 		if err == nil && matched {
@@ -42,25 +42,25 @@ func (r *NamespaceSyncReconciler) shouldSyncResource(name string, filter *syncv1
 func (r *NamespaceSyncReconciler) shouldSyncToNamespace(namespace string, namespaceSync *syncv1.NamespaceSync) bool {
 	logger := log.FromContext(context.Background()).WithValues("namespace", namespace)
 
-	// 시스템 네임스페이스 체크
+	// Check if it is a system namespace
 	if r.isSystemNamespace(namespace) {
 		logger.Info("Namespace is system namespace, skipping sync")
 		return false
 	}
 
-	// 소스 네임스페이스와 동일한 경우 스킵
+	// Skip if it is the same as the source namespace
 	if namespace == namespaceSync.Spec.SourceNamespace {
 		logger.Info("Namespace is source namespace, skipping sync")
 		return false
 	}
 
-	// 제외 목록에 있는 경우 스킵
+	// Skip if the namespace is in the exclude list
 	if contains(namespaceSync.Spec.Exclude, namespace) {
 		logger.Info("Namespace is in exclude list, skipping sync")
 		return false
 	}
 
-	// targetNamespaces가 지정된 경우, 해당 목록에 있는 네임스페이스만 동기화
+	// If targetNamespaces is specified, only sync to namespaces in that list
 	if len(namespaceSync.Spec.TargetNamespaces) > 0 {
 		shouldSync := contains(namespaceSync.Spec.TargetNamespaces, namespace)
 		logger.Info("Checking target namespaces", "shouldSync", shouldSync)
@@ -85,16 +85,16 @@ func (r *NamespaceSyncReconciler) isSystemNamespace(namespace string) bool {
 
 // shouldSkipNamespace checks if the namespace should be skipped for synchronization
 func (r *NamespaceSyncReconciler) shouldSkipNamespace(namespace, sourceNamespace string, excludedNamespaces []string) bool {
-	// 시스템 네임스페이스 체크
+	// Check if it is a system namespace
 	if r.isSystemNamespace(namespace) {
 		return true
 	}
 
-	// 소스 네임스페이스와 동일한 경우 스킵
+	// Skip if it is the same as the source namespace
 	if namespace == sourceNamespace {
 		return true
 	}
 
-	// 제외된 네임스페이스 목록에 포함되어 있는지 체크
+	// Check if the namespace is in the excluded namespaces list
 	return contains(excludedNamespaces, namespace)
 }

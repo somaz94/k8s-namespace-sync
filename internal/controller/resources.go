@@ -24,16 +24,16 @@ func (r *NamespaceSyncReconciler) handleDeletionAndStatus(ctx context.Context, n
 	log := log.FromContext(ctx)
 
 	if controllerutil.ContainsFinalizer(namespacesync, finalizerName) {
-		// 동기화된 리소스 정리
+		// Clean up synced resources
 		if err := r.cleanupSyncedResources(ctx, namespacesync); err != nil {
 			log.Error(err, "Failed to cleanup resources")
 			return ctrl.Result{}, err
 		}
 
-		// Finalizer 제거
+		// Remove the finalizer
 		controllerutil.RemoveFinalizer(namespacesync, finalizerName)
 		if err := r.Update(ctx, namespacesync); err != nil {
-			// 리소스가 이미 삭제된 경우 무시
+			// Ignore if the resource has already been deleted
 			if errors.IsNotFound(err) {
 				return ctrl.Result{}, nil
 			}

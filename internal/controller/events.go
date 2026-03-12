@@ -23,7 +23,7 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncs(ctx context.Context, obj cl
 
 	var requests []reconcile.Request
 	for _, ns := range namespaceSyncs.Items {
-		// 1. 소스 네임스페이스가 변경된 경우
+		// 1. If the source namespace was changed
 		if namespace.Name == ns.Spec.SourceNamespace {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: types.NamespacedName{
@@ -36,7 +36,7 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncs(ctx context.Context, obj cl
 				"namespace", namespace.Name)
 		}
 
-		// 2. 대상 네임스페이스가 생성/수정된 경우
+		// 2. If a target namespace was created/modified
 		if !r.shouldSkipNamespace(namespace.Name, ns.Spec.SourceNamespace, ns.Spec.Exclude) {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: types.NamespacedName{
