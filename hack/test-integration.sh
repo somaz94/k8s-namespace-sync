@@ -95,9 +95,17 @@ log_pass "NamespaceSync CRD is installed"
 
 # Auto-deploy controller if not running
 CONTROLLER_POD=$(kubectl get pods -n "$NAMESPACE" -l control-plane=controller-manager -o name 2>/dev/null | head -1)
-if [ -z "$CONTROLLER_POD" ]; then
+if [ -n "$CONTROLLER_POD" ]; then
+  # Ensure imagePullPolicy is Always for testing
+  kubectl patch deployment k8s-namespace-sync-controller-manager -n "$NAMESPACE" \
+    -p '{"spec":{"template":{"spec":{"containers":[{"name":"manager","imagePullPolicy":"Always"}]}}}}' 2>/dev/null || true
+  kubectl rollout status deployment/k8s-namespace-sync-controller-manager -n "$NAMESPACE" --timeout=120s 2>/dev/null || true
+elif [ -z "$CONTROLLER_POD" ]; then
   log_info "Controller not found. Deploying with 'make deploy'..."
   make deploy IMG="$(grep '^IMG ?=' Makefile | awk -F'= ' '{print $2}')"
+  # Force image pull to ensure latest image is used during testing
+  kubectl patch deployment k8s-namespace-sync-controller-manager -n "$NAMESPACE" \
+    -p '{"spec":{"template":{"spec":{"containers":[{"name":"manager","imagePullPolicy":"Always"}]}}}}' 2>/dev/null || true
   log_info "Waiting for controller pod to be created..."
   for i in $(seq 1 60); do
     if kubectl get pods -n "$NAMESPACE" -l control-plane=controller-manager -o name 2>/dev/null | grep -q .; then
