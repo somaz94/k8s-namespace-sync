@@ -47,6 +47,17 @@ cleanup_test_resources() {
   kubectl delete ns test-ns1 test-ns2 test-ns3 --ignore-not-found 2>/dev/null || true
 }
 
+final_cleanup() {
+  echo ""
+  log_info "--- Final Cleanup (trap) ---"
+  cleanup_cr
+  cleanup_test_resources
+  kubectl delete crd namespacesyncs.sync.nsync.dev --ignore-not-found 2>/dev/null || true
+  helm uninstall "${RELEASE_NAME}" --no-hooks 2>/dev/null || true
+  kubectl delete ns "${NAMESPACE}" --ignore-not-found 2>/dev/null || true
+}
+trap final_cleanup EXIT
+
 echo ""
 log_info "========================================="
 log_info "K8s Namespace Sync Helm Test"
@@ -280,18 +291,7 @@ else
   log_fail "Helm upgrade failed"
 fi
 
-# ── Cleanup ──
-echo ""
-log_info "--- Cleanup ---"
-cleanup_test_resources
-
-log_info "Uninstalling Helm release..."
-# Delete CRD manually before uninstall to avoid cleanup hook hang
-kubectl delete crd namespacesyncs.sync.nsync.dev --ignore-not-found 2>/dev/null || true
-helm uninstall "${RELEASE_NAME}" --no-hooks 2>/dev/null || true
-
-kubectl delete ns "${NAMESPACE}" --ignore-not-found 2>/dev/null || true
-
+# ── Summary ──
 echo ""
 log_info "========================================="
 log_info "Helm Test Summary"
