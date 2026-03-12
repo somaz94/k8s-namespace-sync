@@ -517,7 +517,7 @@ spec:
         - --zap-stacktrace-level=error
         command:
         - /manager
-        image: somaz940/k8s-namespace-sync:v0.2.0
+        image: somaz940/k8s-namespace-sync:v0.2.1
         livenessProbe:
           httpGet:
             path: /healthz

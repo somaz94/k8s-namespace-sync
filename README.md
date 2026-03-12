@@ -32,8 +32,55 @@ The controller:
 <br/>
 
 ## Installation
+
+<br/>
+
+### Prerequisites
+- Kubernetes v1.16+
+- kubectl v1.11.3+
+
+<br/>
+
+### Option 1: Helm (Recommended)
+
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/install.yaml
+# Add the Helm repository
+helm repo add k8s-namespace-sync https://somaz94.github.io/k8s-namespace-sync/helm-repo
+helm repo update
+
+# Install with default values
+helm install k8s-namespace-sync k8s-namespace-sync/k8s-namespace-sync
+
+# Or install with custom values
+helm install k8s-namespace-sync k8s-namespace-sync/k8s-namespace-sync \
+  --set image.tag=v0.2.1 \
+  --namespace k8s-namespace-sync-system --create-namespace
+```
+
+For full Helm chart options, see [Helm README](docs/HELM.md).
+
+<br/>
+
+### Option 2: kubectl apply (Quick Install)
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/dist/install.yaml
+```
+
+<br/>
+
+### Option 3: Build from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/somaz94/k8s-namespace-sync.git
+cd k8s-namespace-sync
+
+# Install CRDs
+make install
+
+# Deploy the controller
+make deploy IMG=somaz940/k8s-namespace-sync:v0.2.1
 ```
 
 <br/>
@@ -346,7 +393,7 @@ kubectl delete namespacesync --all
 3. Remove the controller:
 
 ```bash
-kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/release/install.yaml
+kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/dist/install.yaml
 ```
 
 # Development Setup
@@ -379,7 +426,7 @@ Manual installation locations:
   - controller-gen v0.16.4
   - kustomize v5.5.0
   - setup-envtest v0.19.0
-  - golangci-lint v1.61.0
+  - golangci-lint v2.1.6
 
 Note: The binary directory (`./bin`) is git-ignored and will be created when needed.
 
