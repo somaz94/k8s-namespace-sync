@@ -73,7 +73,7 @@ final_cleanup() {
   log_info "--- Final Cleanup (trap) ---"
   cleanup_test_resources
   cleanup_cr
-  make undeploy 2>&1 | tail -3 || true
+  make undeploy || true
 }
 trap final_cleanup EXIT
 
