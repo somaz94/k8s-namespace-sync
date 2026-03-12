@@ -68,6 +68,15 @@ cleanup_test_resources() {
   kubectl delete ns test-ns1 test-ns2 test-ns3 --ignore-not-found 2>/dev/null || true
 }
 
+final_cleanup() {
+  echo ""
+  log_info "--- Final Cleanup (trap) ---"
+  cleanup_test_resources
+  cleanup_cr
+  make undeploy 2>&1 | tail -3 || true
+}
+trap final_cleanup EXIT
+
 echo ""
 log_info "========================================="
 log_info "K8s Namespace Sync Integration Test"
@@ -385,11 +394,7 @@ fi
 cleanup_cr
 kubectl delete ns test-ns-dynamic --ignore-not-found 2>/dev/null || true
 
-# ── Cleanup ──
-echo ""
-log_info "--- Cleanup ---"
-cleanup_test_resources
-
+# ── Summary ──
 echo ""
 log_info "========================================="
 log_info "Integration Test Summary"
