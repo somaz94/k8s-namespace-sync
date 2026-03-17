@@ -2,12 +2,25 @@
 
 ![Top Language](https://img.shields.io/github/languages/top/somaz94/k8s-namespace-sync?color=green&logo=go&logoColor=b)
 ![k8s-namespace-sync](https://img.shields.io/github/v/tag/somaz94/k8s-namespace-sync?label=k8s-namespace-sync&logo=kubernetes&logoColor=white)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Go Report Card](https://goreportcard.com/badge/github.com/somaz94/k8s-namespace-sync)](https://goreportcard.com/report/github.com/somaz94/k8s-namespace-sync)
+![Docker Pulls](https://img.shields.io/docker/pulls/somaz940/k8s-namespace-sync?logo=docker&logoColor=white)
+![GitHub Release](https://img.shields.io/github/release/somaz94/k8s-namespace-sync?logo=github)
+![GitHub Stars](https://img.shields.io/github/stars/somaz94/k8s-namespace-sync?style=social)
 
 K8s Namespace Sync is a Kubernetes controller that automatically synchronizes Secrets and ConfigMaps across multiple namespaces within a Kubernetes cluster.
 
 <br/>
 
 ## Features
+
+![Secret Sync](https://img.shields.io/badge/Secret_Sync-blue?logo=kubernetes&logoColor=white)
+![ConfigMap Sync](https://img.shields.io/badge/ConfigMap_Sync-blue?logo=kubernetes&logoColor=white)
+![Glob Filter](https://img.shields.io/badge/Glob_Filter-green?logo=kubernetes&logoColor=white)
+![Auto Detect](https://img.shields.io/badge/Auto_Detect-green?logo=kubernetes&logoColor=white)
+![Namespace Target](https://img.shields.io/badge/Namespace_Target-orange?logo=kubernetes&logoColor=white)
+![Prometheus](https://img.shields.io/badge/Prometheus_Metrics-E6522C?logo=prometheus&logoColor=white)
+![Finalizer](https://img.shields.io/badge/Finalizer_Cleanup-326CE5?logo=kubernetes&logoColor=white)
 
 - Automatic synchronization of Secrets and ConfigMaps across namespaces
 - Automatic detection and synchronization of changes in source namespace
