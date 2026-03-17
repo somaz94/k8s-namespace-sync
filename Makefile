@@ -165,6 +165,18 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > dist/install.yaml
 
+##@ Version
+
+.PHONY: version
+version: ## Show current version across all files.
+	@./hack/bump-version.sh --current
+
+VERSION ?=
+.PHONY: bump-version
+bump-version: ## Bump version across all files. Usage: make bump-version VERSION=v0.3.0
+	@if [ -z "$(VERSION)" ]; then echo "Usage: make bump-version VERSION=vX.Y.Z"; exit 1; fi
+	@./hack/bump-version.sh $(VERSION)
+
 ##@ Deployment
 
 ifndef ignore-not-found
