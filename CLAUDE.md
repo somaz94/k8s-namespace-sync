@@ -5,6 +5,7 @@
 ## Commit Guidelines
 
 - Do not include `Co-Authored-By` lines in commit messages.
+- Do not push to remote. Only commit. The user will push manually.
 
 <br/>
 
@@ -71,3 +72,4 @@ make bump-version VERSION=vX.Y.Z  # Bump version across all files
 ## Language
 
 - Communicate with the user in Korean.
+- All documentation and code comments must be written in English.
