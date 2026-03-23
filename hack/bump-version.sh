@@ -111,7 +111,7 @@ update_file "${ROOT_DIR}/helm/${PROJECT_NAME}/Chart.yaml" \
     "Chart.yaml (appVersion)"
 
 update_file "${ROOT_DIR}/helm/${PROJECT_NAME}/values.yaml" \
-    "tag: .*${CURRENT_VERSION}" \
+    "tag: .*${CURRENT_VERSION}.*" \
     "tag: \"${NEW_VERSION}\"" \
     "values.yaml (image.tag)"
 
