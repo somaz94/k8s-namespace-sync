@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -10,6 +11,24 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+// syncResourceList iterates over resource names and calls syncFn for each,
+// optionally filtering by a ResourceFilter. This eliminates duplication
+// between secret and configmap sync loops.
+func (r *NamespaceSyncReconciler) syncResourceList(ctx context.Context, names []string, filter *syncv1.ResourceFilter, syncFn func(string) error, resourceType string, targetNamespace string) error {
+	log := log.FromContext(ctx)
+	for _, name := range names {
+		if filter != nil && !r.shouldSyncResource(name, filter) {
+			continue
+		}
+		if err := syncFn(name); err != nil {
+			log.Error(err, fmt.Sprintf("Failed to sync %s", resourceType), "name", name, "targetNamespace", targetNamespace)
+			return err
+		}
+		log.Info(fmt.Sprintf("Successfully synced %s", resourceType), "name", name, "targetNamespace", targetNamespace)
+	}
+	return nil
+}
 
 // syncResources handles the synchronization of resources to target namespace
 func (r *NamespaceSyncReconciler) syncResources(ctx context.Context, namespaceSync *syncv1.NamespaceSync, targetNamespace string) error {
@@ -20,69 +39,23 @@ func (r *NamespaceSyncReconciler) syncResources(ctx context.Context, namespaceSy
 		"secretCount", len(namespaceSync.Spec.SecretName),
 		"configMapCount", len(namespaceSync.Spec.ConfigMapName))
 
+	var secretFilter, configMapFilter *syncv1.ResourceFilter
+	if namespaceSync.Spec.ResourceFilters != nil {
+		secretFilter = namespaceSync.Spec.ResourceFilters.Secrets
+		configMapFilter = namespaceSync.Spec.ResourceFilters.ConfigMaps
+	}
+
 	// Sync Secrets
-	if namespaceSync.Spec.ResourceFilters == nil || namespaceSync.Spec.ResourceFilters.Secrets == nil {
-		// Keep existing logic
-		for _, secretName := range namespaceSync.Spec.SecretName {
-			if err := r.syncSecret(ctx, namespaceSync.Spec.SourceNamespace, targetNamespace, secretName); err != nil {
-				log.Error(err, "Failed to sync secret",
-					"secretName", secretName,
-					"targetNamespace", targetNamespace)
-				return err
-			}
-			log.Info("Successfully synced secret",
-				"secretName", secretName,
-				"targetNamespace", targetNamespace)
-		}
-	} else {
-		// Apply filtering
-		for _, secretName := range namespaceSync.Spec.SecretName {
-			if r.shouldSyncResource(secretName, namespaceSync.Spec.ResourceFilters.Secrets) {
-				if err := r.syncSecret(ctx, namespaceSync.Spec.SourceNamespace, targetNamespace, secretName); err != nil {
-					log.Error(err, "Failed to sync secret",
-						"secretName", secretName,
-						"targetNamespace", targetNamespace)
-					return err
-				}
-				log.Info("Successfully synced secret",
-					"secretName", secretName,
-					"targetNamespace", targetNamespace)
-			}
-		}
+	if err := r.syncResourceList(ctx, namespaceSync.Spec.SecretName, secretFilter, func(name string) error {
+		return r.syncSecret(ctx, namespaceSync.Spec.SourceNamespace, targetNamespace, name)
+	}, "secret", targetNamespace); err != nil {
+		return err
 	}
 
 	// Sync ConfigMaps
-	if namespaceSync.Spec.ResourceFilters == nil || namespaceSync.Spec.ResourceFilters.ConfigMaps == nil {
-		// Keep existing logic
-		for _, configMapName := range namespaceSync.Spec.ConfigMapName {
-			if err := r.syncConfigMap(ctx, namespaceSync, targetNamespace, configMapName); err != nil {
-				log.Error(err, "Failed to sync configmap",
-					"configMapName", configMapName,
-					"targetNamespace", targetNamespace)
-				return err
-			}
-			log.Info("Successfully synced configmap",
-				"configMapName", configMapName,
-				"targetNamespace", targetNamespace)
-		}
-	} else {
-		// Apply filtering
-		for _, configMapName := range namespaceSync.Spec.ConfigMapName {
-			if r.shouldSyncResource(configMapName, namespaceSync.Spec.ResourceFilters.ConfigMaps) {
-				if err := r.syncConfigMap(ctx, namespaceSync, targetNamespace, configMapName); err != nil {
-					log.Error(err, "Failed to sync configmap",
-						"configMapName", configMapName,
-						"targetNamespace", targetNamespace)
-					return err
-				}
-				log.Info("Successfully synced configmap",
-					"configMapName", configMapName,
-					"targetNamespace", targetNamespace)
-			}
-		}
-	}
-
-	return nil
+	return r.syncResourceList(ctx, namespaceSync.Spec.ConfigMapName, configMapFilter, func(name string) error {
+		return r.syncConfigMap(ctx, namespaceSync, targetNamespace, name)
+	}, "configmap", targetNamespace)
 }
 
 // syncSecret synchronizes a single secret to the target namespace
