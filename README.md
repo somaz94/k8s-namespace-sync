@@ -320,7 +320,7 @@ kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/m
 - Labels and annotations from the source resources are preserved in synced resources
 - When the NamespaceSync CR is deleted, all synced resources are automatically cleaned up
 - Finalizer ensures proper cleanup of synced resources before CR deletion
-- The controller performs periodic reconciliation every 5 minutes to catch any external drift, ensuring resources remain in sync even if events are missed
+- The controller performs periodic reconciliation (default: every 5 minutes) to catch any external drift, ensuring resources remain in sync even if events are missed. The interval is configurable via the `RECONCILE_INTERVAL` environment variable (e.g., `RECONCILE_INTERVAL=10m`)
 
 <br/>
 

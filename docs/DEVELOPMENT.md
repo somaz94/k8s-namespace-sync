@@ -174,6 +174,14 @@ make pr title="feat: add filter logic"     # Test → push → create PR
 
 <br/>
 
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RECONCILE_INTERVAL` | `5m` | Periodic reconciliation interval. Accepts any Go `time.Duration` string (e.g., `10m`, `30s`, `1h`). |
+
+<br/>
+
 ## Conventions
 
 - **Commits**: Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `ci:`, `chore:`)
