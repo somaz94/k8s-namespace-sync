@@ -27,7 +27,14 @@ func (r *NamespaceSyncReconciler) handleDeletionAndStatus(ctx context.Context, n
 		// Clean up synced resources
 		if err := r.cleanupSyncedResources(ctx, namespacesync); err != nil {
 			log.Error(err, "Failed to cleanup resources")
+			if r.Recorder != nil {
+				r.Recorder.Eventf(namespacesync, corev1.EventTypeWarning, "CleanupFailed", "Failed to clean up synced resources: %v", err)
+			}
 			return ctrl.Result{}, err
+		}
+
+		if r.Recorder != nil {
+			r.Recorder.Event(namespacesync, corev1.EventTypeNormal, "CleanupComplete", "Successfully cleaned up synced resources")
 		}
 
 		// Remove the finalizer
@@ -192,11 +199,13 @@ func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, na
 				log.Error(err, "Failed to delete synced Secret",
 					"namespace", ns.Name,
 					"name", secretName)
+				cleanupFailureCounter.WithLabelValues(ns.Name, "secret").Inc()
 				errs = append(errs, err)
 			} else {
 				log.Info("Successfully deleted Secret",
 					"namespace", ns.Name,
 					"name", secretName)
+				cleanupSuccessCounter.WithLabelValues(ns.Name, "secret").Inc()
 			}
 		}
 
@@ -212,11 +221,13 @@ func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, na
 				log.Error(err, "Failed to delete synced ConfigMap",
 					"namespace", ns.Name,
 					"name", configMapName)
+				cleanupFailureCounter.WithLabelValues(ns.Name, "configmap").Inc()
 				errs = append(errs, err)
 			} else {
 				log.Info("Successfully deleted ConfigMap",
 					"namespace", ns.Name,
 					"name", configMapName)
+				cleanupSuccessCounter.WithLabelValues(ns.Name, "configmap").Inc()
 			}
 		}
 	}

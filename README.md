@@ -320,6 +320,43 @@ kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/m
 - Labels and annotations from the source resources are preserved in synced resources
 - When the NamespaceSync CR is deleted, all synced resources are automatically cleaned up
 - Finalizer ensures proper cleanup of synced resources before CR deletion
+- The controller performs periodic reconciliation every 5 minutes to catch any external drift, ensuring resources remain in sync even if events are missed
+
+<br/>
+
+### Kubernetes Events
+
+The controller emits Kubernetes events on NamespaceSync resources to provide visibility into sync operations:
+
+| Event Type | Reason | Description |
+|------------|--------|-------------|
+| Normal | `SyncComplete` | Emitted after resources are successfully synced to target namespaces |
+| Warning | `SyncFailed` | Emitted when sync fails for one or more target namespaces |
+| Warning | `ValidationFailed` | Emitted when the NamespaceSync spec fails validation |
+| Normal | `CleanupComplete` | Emitted after synced resources are successfully cleaned up during deletion |
+| Warning | `CleanupFailed` | Emitted when cleanup of synced resources fails during deletion |
+
+You can view events with:
+```bash
+kubectl describe namespacesync <name>
+# or
+kubectl get events --field-selector involvedObject.kind=NamespaceSync
+```
+
+<br/>
+
+### Prometheus Metrics
+
+The controller exposes the following Prometheus metrics:
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `namespacesync_sync_success_total` | Counter | `namespace`, `resource_type` | Number of successful resource synchronizations |
+| `namespacesync_sync_failure_total` | Counter | `namespace`, `resource_type` | Number of failed resource synchronizations |
+| `namespacesync_cleanup_success_total` | Counter | `namespace`, `resource_type` | Number of successful resource cleanups |
+| `namespacesync_cleanup_failure_total` | Counter | `namespace`, `resource_type` | Number of failed resource cleanups |
+| `namespacesync_sync_duration_seconds` | Histogram | `namespace`, `resource_type` | Duration of sync operations in seconds |
+| `namespacesync_managed_resources` | Gauge | `namespace`, `resource_type` | Number of resources being managed by NamespaceSync |
 
 <br/>
 

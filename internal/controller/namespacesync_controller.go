@@ -18,11 +18,13 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -47,7 +49,8 @@ import (
 // NamespaceSyncReconciler reconciles a NamespaceSync object
 type NamespaceSyncReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 }
 
 func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -69,6 +72,9 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// Validate NamespaceSync resource
 	if err := validateNamespaceSync(namespacesync); err != nil {
 		log.Error(err, "Invalid NamespaceSync resource")
+		if r.Recorder != nil {
+			r.Recorder.Event(namespacesync, corev1.EventTypeWarning, "ValidationFailed", err.Error())
+		}
 		// Update status to reflect validation error
 		failedNamespaces := map[string]string{"validation": err.Error()}
 		if updateErr := r.updateStatus(ctx, namespacesync, nil, failedNamespaces); updateErr != nil {
@@ -119,6 +125,9 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
+	// Measure sync duration
+	startTime := time.Now()
+
 	// Sync to each namespace except the source and excluded ones
 	for _, ns := range namespaceList.Items {
 		if r.shouldSyncToNamespace(ns.Name, namespacesync) {
@@ -132,13 +141,30 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
+	// Record sync duration metric
+	syncDurationHistogram.WithLabelValues(namespacesync.Name, "all").Observe(time.Since(startTime).Seconds())
+
+	// Record resource count metrics
+	resourceCount.WithLabelValues(namespacesync.Name, "secret").Set(float64(len(namespacesync.Spec.SecretName)))
+	resourceCount.WithLabelValues(namespacesync.Name, "configmap").Set(float64(len(namespacesync.Spec.ConfigMapName)))
+
+	// Record events for sync results
+	if r.Recorder != nil {
+		if len(failedNamespaces) > 0 {
+			r.Recorder.Eventf(namespacesync, corev1.EventTypeWarning, "SyncFailed", "Failed to sync to %d namespaces", len(failedNamespaces))
+		}
+		if len(syncedNamespaces) > 0 {
+			r.Recorder.Eventf(namespacesync, corev1.EventTypeNormal, "SyncComplete", "Successfully synced resources to %d namespaces", len(syncedNamespaces))
+		}
+	}
+
 	// Update status
 	if err := r.updateStatus(ctx, namespacesync, syncedNamespaces, failedNamespaces); err != nil {
 		log.Error(err, "Failed to update status")
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

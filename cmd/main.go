@@ -167,8 +167,9 @@ func main() {
 		"scheme", scheme.Name())
 
 	if err = (&controller.NamespaceSyncReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("namespacesync-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NamespaceSync")
 		os.Exit(1)
