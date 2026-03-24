@@ -46,6 +46,9 @@ import (
 // +kubebuilder:rbac:groups="authentication.k8s.io",resources=tokenreviews,verbs=create
 // +kubebuilder:rbac:groups="authorization.k8s.io",resources=subjectaccessreviews,verbs=create
 
+// ReconcileInterval is the default interval for periodic reconciliation
+var ReconcileInterval = 5 * time.Minute
+
 // NamespaceSyncReconciler reconciles a NamespaceSync object
 type NamespaceSyncReconciler struct {
 	client.Client
@@ -164,7 +167,7 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+	return ctrl.Result{RequeueAfter: ReconcileInterval}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
