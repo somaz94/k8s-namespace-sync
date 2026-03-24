@@ -394,6 +394,130 @@ fi
 cleanup_cr
 kubectl delete ns test-ns-dynamic --ignore-not-found 2>/dev/null || true
 
+# ── Test G: Event Recording ──
+echo ""
+log_info "--- Test G: Event Recording ---"
+
+cat <<EOF | kubectl apply -f -
+apiVersion: sync.nsync.dev/v1
+kind: NamespaceSync
+metadata:
+  name: test-events
+spec:
+  sourceNamespace: default
+  secretName:
+    - test-secret
+  configMapName:
+    - test-configmap
+EOF
+
+if wait_for_sync "test-events" "default" 30; then
+  log_pass "Events: CR reached Ready state"
+else
+  log_fail "Events: CR did not reach Ready state"
+fi
+
+# Check events exist
+EVENTS=$(kubectl get events --field-selector involvedObject.name=test-events --no-headers 2>/dev/null | wc -l | tr -d ' ')
+if [ "$EVENTS" -gt 0 ]; then
+  log_pass "Events: ${EVENTS} events recorded"
+else
+  log_fail "Events: No events recorded"
+fi
+
+# Verify SyncComplete event
+if kubectl get events --field-selector involvedObject.name=test-events --no-headers 2>/dev/null | grep -q "SyncComplete"; then
+  log_pass "Events: SyncComplete event found"
+else
+  log_fail "Events: SyncComplete event not found"
+fi
+
+kubectl delete namespacesync test-events --timeout=30s 2>/dev/null || true
+sleep 2
+
+# ── Test H: Status Conditions ──
+echo ""
+log_info "--- Test H: Status Conditions ---"
+
+cat <<EOF | kubectl apply -f -
+apiVersion: sync.nsync.dev/v1
+kind: NamespaceSync
+metadata:
+  name: test-status
+spec:
+  sourceNamespace: default
+  secretName:
+    - test-secret
+  configMapName:
+    - test-configmap
+EOF
+
+if wait_for_sync "test-status" "default" 30; then
+  log_pass "Status: CR reached Ready state"
+else
+  log_fail "Status: CR did not reach Ready state"
+fi
+
+# Check Ready condition reason
+REASON=$(kubectl get namespacesync test-status -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}' 2>/dev/null)
+if [ "$REASON" = "SyncComplete" ]; then
+  log_pass "Status: Reason is SyncComplete"
+else
+  log_fail "Status: Expected reason SyncComplete, got: ${REASON}"
+fi
+
+# Check message contains namespace count
+MESSAGE=$(kubectl get namespacesync test-status -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null)
+if echo "$MESSAGE" | grep -q "namespace"; then
+  log_pass "Status: Message contains namespace info: ${MESSAGE}"
+else
+  log_fail "Status: Message missing namespace info: ${MESSAGE}"
+fi
+
+kubectl delete namespacesync test-status --timeout=30s 2>/dev/null || true
+sleep 2
+
+# ── Test I: Sync Metadata Annotations ──
+echo ""
+log_info "--- Test I: Sync Metadata Annotations ---"
+
+cat <<EOF | kubectl apply -f -
+apiVersion: sync.nsync.dev/v1
+kind: NamespaceSync
+metadata:
+  name: test-metadata
+spec:
+  sourceNamespace: default
+  targetNamespaces:
+    - test-ns1
+  secretName:
+    - test-secret
+EOF
+
+if wait_for_sync "test-metadata" "default" 30; then
+  log_pass "Metadata: CR reached Ready state"
+else
+  log_fail "Metadata: CR did not reach Ready state"
+fi
+
+# Check sync metadata annotation on target secret
+SOURCE_NS_ANNOTATION=$(kubectl get secret test-secret -n test-ns1 -o jsonpath='{.metadata.annotations.namespacesync\.nsync\.dev/source-namespace}' 2>/dev/null)
+if [ "$SOURCE_NS_ANNOTATION" = "default" ]; then
+  log_pass "Metadata: Source namespace annotation present"
+else
+  log_fail "Metadata: Source namespace annotation missing or wrong: ${SOURCE_NS_ANNOTATION}"
+fi
+
+LAST_SYNC=$(kubectl get secret test-secret -n test-ns1 -o jsonpath='{.metadata.annotations.namespacesync\.nsync\.dev/last-sync}' 2>/dev/null)
+if [ -n "$LAST_SYNC" ]; then
+  log_pass "Metadata: Last sync annotation present: ${LAST_SYNC}"
+else
+  log_fail "Metadata: Last sync annotation missing"
+fi
+
+kubectl delete namespacesync test-metadata --timeout=30s 2>/dev/null || true
+sleep 2
+
 # ── Summary ──
 echo ""
 log_info "========================================="

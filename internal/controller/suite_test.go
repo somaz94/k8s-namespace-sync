@@ -55,14 +55,10 @@ var (
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	opts := zap.Options{
-		Development: true,
-		Level:       zapcore.DebugLevel,
-	}
 	logf.SetLogger(zap.New(
 		zap.WriteTo(GinkgoWriter),
 		zap.UseDevMode(true),
-		zap.Level(opts.Level),
+		zap.Level(zapcore.DebugLevel),
 	))
 
 	RunSpecs(t, "Controller Suite")
