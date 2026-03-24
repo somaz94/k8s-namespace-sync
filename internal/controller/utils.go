@@ -46,20 +46,49 @@ func (r *NamespaceSyncReconciler) updateStatus(ctx context.Context, namespaceSyn
 		latest.Status.FailedNamespaces = failedNamespaces
 		latest.Status.ObservedGeneration = latest.Generation
 
-		// Update Ready condition
-		readyCondition := metav1.Condition{
-			Type:               "Ready",
-			Status:             metav1.ConditionTrue,
-			ObservedGeneration: latest.Generation,
-			LastTransitionTime: metav1.NewTime(time.Now()),
-			Reason:             "SyncComplete",
-			Message:            fmt.Sprintf("Successfully synced to %d namespaces", len(syncedNamespaces)),
-		}
-
-		if len(failedNamespaces) > 0 {
-			readyCondition.Status = metav1.ConditionFalse
-			readyCondition.Reason = "SyncFailed"
-			readyCondition.Message = fmt.Sprintf("Failed to sync to %d namespaces", len(failedNamespaces))
+		// Update Ready condition based on sync results
+		var readyCondition metav1.Condition
+		switch {
+		case len(failedNamespaces) == 0 && len(syncedNamespaces) > 0:
+			// Full success
+			readyCondition = metav1.Condition{
+				Type:               "Ready",
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: latest.Generation,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Reason:             "SyncComplete",
+				Message:            fmt.Sprintf("Successfully synced to %d namespaces", len(syncedNamespaces)),
+			}
+		case len(failedNamespaces) > 0 && len(syncedNamespaces) > 0:
+			// Partial success
+			readyCondition = metav1.Condition{
+				Type:               "Ready",
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: latest.Generation,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Reason:             "PartialSync",
+				Message:            fmt.Sprintf("Synced to %d namespaces, failed to sync to %d namespaces", len(syncedNamespaces), len(failedNamespaces)),
+			}
+		case len(syncedNamespaces) == 0 && len(failedNamespaces) > 0:
+			// Full failure
+			readyCondition = metav1.Condition{
+				Type:               "Ready",
+				Status:             metav1.ConditionFalse,
+				ObservedGeneration: latest.Generation,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Reason:             "SyncFailed",
+				Message:            fmt.Sprintf("Failed to sync to %d namespaces", len(failedNamespaces)),
+			}
+		default:
+			// No namespaces to sync
+			readyCondition = metav1.Condition{
+				Type:               "Ready",
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: latest.Generation,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Reason:             "SyncComplete",
+				Message:            "No target namespaces to sync",
+			}
 		}
 
 		meta.SetStatusCondition(&latest.Status.Conditions, readyCondition)
