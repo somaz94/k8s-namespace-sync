@@ -57,6 +57,7 @@ The following table lists the configurable parameters of the k8s-namespace-sync 
 | `controller.logging.level` | Log level | `debug` |
 | `controller.logging.encoder` | Log encoder | `console` |
 | `controller.logging.stacktraceLevel` | Stack trace log level | `error` |
+| `controller.env` | Extra environment variables for the controller container | `[]` |
 | `service.type` | Service type | `ClusterIP` |
 | `service.port` | Service port | `8443` |
 | `probes.liveness.initialDelaySeconds` | Liveness probe initial delay | `15` |
@@ -149,6 +150,26 @@ spec:
 ```
 
 This prevents the controller from attempting to synchronize resources in its own namespace, which could cause unexpected behavior. The system namespaces are automatically excluded, so you only need to add your custom installation namespace to the exclude list.
+
+## Reconcile Interval Configuration
+
+The controller performs periodic reconciliation to catch any external drift. By default, the reconcile interval is 5 minutes. You can customize this interval by setting the `RECONCILE_INTERVAL` environment variable via Helm values:
+
+```yaml
+controller:
+  env:
+    - name: RECONCILE_INTERVAL
+      value: "10m"
+```
+
+Or using `--set`:
+```bash
+helm install k8s-namespace-sync k8s-namespace-sync/k8s-namespace-sync \
+  --set 'controller.env[0].name=RECONCILE_INTERVAL' \
+  --set 'controller.env[0].value=10m'
+```
+
+The value accepts Go duration strings (e.g., `5m`, `10m`, `1h`).
 
 ## Custom Resource Configuration
 

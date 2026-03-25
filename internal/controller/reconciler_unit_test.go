@@ -743,6 +743,221 @@ func TestFindNamespaceSyncsForConfigMap_ListError(t *testing.T) {
 	}
 }
 
+func TestUpdateStatus_AllSynced(t *testing.T) {
+	scheme := newTestScheme()
+
+	ns := &syncv1.NamespaceSync{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "status-all-synced",
+			Namespace:  "status-ns",
+			Generation: 1,
+		},
+		Spec: syncv1.NamespaceSyncSpec{
+			SourceNamespace: "status-ns",
+			SecretName:      []string{"s"},
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ns).
+		WithStatusSubresource(ns).
+		Build()
+
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	err := r.updateStatus(context.Background(), ns, []string{"ns1", "ns2", "ns3"}, nil)
+	if err != nil {
+		t.Fatalf("updateStatus error: %v", err)
+	}
+
+	// Fetch the updated resource
+	var updated syncv1.NamespaceSync
+	err = c.Get(context.Background(), types.NamespacedName{Name: "status-all-synced", Namespace: "status-ns"}, &updated)
+	if err != nil {
+		t.Fatalf("failed to get updated resource: %v", err)
+	}
+
+	if len(updated.Status.Conditions) == 0 {
+		t.Fatal("expected at least one condition")
+	}
+
+	cond := updated.Status.Conditions[0]
+	if cond.Type != "Ready" {
+		t.Errorf("expected condition type 'Ready', got %q", cond.Type)
+	}
+	if cond.Status != metav1.ConditionTrue {
+		t.Errorf("expected condition status True, got %q", cond.Status)
+	}
+	if cond.Reason != "SyncComplete" {
+		t.Errorf("expected reason 'SyncComplete', got %q", cond.Reason)
+	}
+	if len(updated.Status.SyncedNamespaces) != 3 {
+		t.Errorf("expected 3 synced namespaces, got %d", len(updated.Status.SyncedNamespaces))
+	}
+}
+
+func TestUpdateStatus_PartialSync(t *testing.T) {
+	scheme := newTestScheme()
+
+	ns := &syncv1.NamespaceSync{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "status-partial",
+			Namespace:  "status-ns",
+			Generation: 1,
+		},
+		Spec: syncv1.NamespaceSyncSpec{
+			SourceNamespace: "status-ns",
+			SecretName:      []string{"s"},
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ns).
+		WithStatusSubresource(ns).
+		Build()
+
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	failedNs := map[string]string{"ns2": "connection refused"}
+	err := r.updateStatus(context.Background(), ns, []string{"ns1"}, failedNs)
+	if err != nil {
+		t.Fatalf("updateStatus error: %v", err)
+	}
+
+	var updated syncv1.NamespaceSync
+	err = c.Get(context.Background(), types.NamespacedName{Name: "status-partial", Namespace: "status-ns"}, &updated)
+	if err != nil {
+		t.Fatalf("failed to get updated resource: %v", err)
+	}
+
+	if len(updated.Status.Conditions) == 0 {
+		t.Fatal("expected at least one condition")
+	}
+
+	cond := updated.Status.Conditions[0]
+	if cond.Type != "Ready" {
+		t.Errorf("expected condition type 'Ready', got %q", cond.Type)
+	}
+	if cond.Status != metav1.ConditionTrue {
+		t.Errorf("expected condition status True for partial sync, got %q", cond.Status)
+	}
+	if cond.Reason != "PartialSync" {
+		t.Errorf("expected reason 'PartialSync', got %q", cond.Reason)
+	}
+	if len(updated.Status.FailedNamespaces) != 1 {
+		t.Errorf("expected 1 failed namespace, got %d", len(updated.Status.FailedNamespaces))
+	}
+}
+
+func TestUpdateStatus_AllFailed(t *testing.T) {
+	scheme := newTestScheme()
+
+	ns := &syncv1.NamespaceSync{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "status-all-failed",
+			Namespace:  "status-ns",
+			Generation: 1,
+		},
+		Spec: syncv1.NamespaceSyncSpec{
+			SourceNamespace: "status-ns",
+			SecretName:      []string{"s"},
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ns).
+		WithStatusSubresource(ns).
+		Build()
+
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	failedNs := map[string]string{"ns1": "error1", "ns2": "error2"}
+	err := r.updateStatus(context.Background(), ns, []string{}, failedNs)
+	if err != nil {
+		t.Fatalf("updateStatus error: %v", err)
+	}
+
+	var updated syncv1.NamespaceSync
+	err = c.Get(context.Background(), types.NamespacedName{Name: "status-all-failed", Namespace: "status-ns"}, &updated)
+	if err != nil {
+		t.Fatalf("failed to get updated resource: %v", err)
+	}
+
+	if len(updated.Status.Conditions) == 0 {
+		t.Fatal("expected at least one condition")
+	}
+
+	cond := updated.Status.Conditions[0]
+	if cond.Type != "Ready" {
+		t.Errorf("expected condition type 'Ready', got %q", cond.Type)
+	}
+	if cond.Status != metav1.ConditionFalse {
+		t.Errorf("expected condition status False for all failed, got %q", cond.Status)
+	}
+	if cond.Reason != "SyncFailed" {
+		t.Errorf("expected reason 'SyncFailed', got %q", cond.Reason)
+	}
+	if len(updated.Status.FailedNamespaces) != 2 {
+		t.Errorf("expected 2 failed namespaces, got %d", len(updated.Status.FailedNamespaces))
+	}
+}
+
+func TestUpdateStatus_NoNamespaces(t *testing.T) {
+	scheme := newTestScheme()
+
+	ns := &syncv1.NamespaceSync{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "status-no-ns",
+			Namespace:  "status-ns",
+			Generation: 1,
+		},
+		Spec: syncv1.NamespaceSyncSpec{
+			SourceNamespace: "status-ns",
+			SecretName:      []string{"s"},
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ns).
+		WithStatusSubresource(ns).
+		Build()
+
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	err := r.updateStatus(context.Background(), ns, []string{}, nil)
+	if err != nil {
+		t.Fatalf("updateStatus error: %v", err)
+	}
+
+	var updated syncv1.NamespaceSync
+	err = c.Get(context.Background(), types.NamespacedName{Name: "status-no-ns", Namespace: "status-ns"}, &updated)
+	if err != nil {
+		t.Fatalf("failed to get updated resource: %v", err)
+	}
+
+	if len(updated.Status.Conditions) == 0 {
+		t.Fatal("expected at least one condition")
+	}
+
+	cond := updated.Status.Conditions[0]
+	if cond.Type != "Ready" {
+		t.Errorf("expected condition type 'Ready', got %q", cond.Type)
+	}
+	if cond.Status != metav1.ConditionTrue {
+		t.Errorf("expected condition status True for no namespaces, got %q", cond.Status)
+	}
+	if cond.Reason != "SyncComplete" {
+		t.Errorf("expected reason 'SyncComplete', got %q", cond.Reason)
+	}
+	if cond.Message != "No target namespaces to sync" {
+		t.Errorf("expected message 'No target namespaces to sync', got %q", cond.Message)
+	}
+}
+
 func TestFindNamespaceSyncsForConfigMap(t *testing.T) {
 	scheme := newTestScheme()
 

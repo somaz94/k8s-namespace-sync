@@ -199,6 +199,141 @@ Cleanup:
 kubectl delete namespacesync --all
 ```
 
+<br/>
+
+### Test E: Cleanup on Deletion
+
+Verifies that synced resources are deleted when the NamespaceSync CR is deleted via finalizer.
+
+```bash
+kubectl apply -f config/samples/sync_v1_namespacesync.yaml
+```
+
+Check that resources are synced:
+
+```bash
+kubectl get configmaps -A | grep test-configmap
+kubectl get secrets -A | grep test-secret
+```
+
+Delete the CR and verify cleanup:
+
+```bash
+kubectl delete namespacesync namespacesync-sample
+kubectl get configmaps -A | grep test-configmap
+kubectl get secrets -A | grep test-secret
+```
+
+The synced resources should be removed from all target namespaces after deletion.
+
+<br/>
+
+### Test F: Dynamic Namespace Detection
+
+Verifies that resources are synced to newly created namespaces at runtime.
+
+```bash
+kubectl apply -f config/samples/sync_v1_namespacesync.yaml
+```
+
+Create a new namespace after the CR is applied:
+
+```bash
+kubectl create ns dynamic-test-ns
+```
+
+Check that resources are automatically synced to the new namespace:
+
+```bash
+kubectl get configmap test-configmap -n dynamic-test-ns
+kubectl get secret test-secret -n dynamic-test-ns
+```
+
+Cleanup:
+
+```bash
+kubectl delete namespacesync --all
+kubectl delete ns dynamic-test-ns
+```
+
+<br/>
+
+### Test G: Event Recording
+
+Verifies that Kubernetes events (SyncComplete) are emitted after sync operations.
+
+```bash
+kubectl apply -f config/samples/sync_v1_namespacesync.yaml
+```
+
+Check:
+
+```bash
+kubectl describe namespacesync namespacesync-sample
+kubectl get events --field-selector involvedObject.kind=NamespaceSync
+```
+
+You should see `SyncComplete` events recorded on the NamespaceSync resource.
+
+Cleanup:
+
+```bash
+kubectl delete namespacesync --all
+```
+
+<br/>
+
+### Test H: Status Conditions
+
+Verifies that the Ready condition reason (SyncComplete) and message contains namespace info.
+
+```bash
+kubectl apply -f config/samples/sync_v1_namespacesync.yaml
+```
+
+Check:
+
+```bash
+kubectl get namespacesync namespacesync-sample -o jsonpath='{.status.conditions}'
+```
+
+The Ready condition should have:
+- `status: "True"`
+- `reason: "SyncComplete"`
+- `message` containing the number of synced namespaces
+
+Cleanup:
+
+```bash
+kubectl delete namespacesync --all
+```
+
+<br/>
+
+### Test I: Sync Metadata Annotations
+
+Verifies that `namespacesync.nsync.dev/source-namespace` and `namespacesync.nsync.dev/last-sync` annotations are present on synced resources.
+
+```bash
+kubectl apply -f config/samples/sync_v1_namespacesync.yaml
+```
+
+Check annotations on a synced resource in a target namespace:
+
+```bash
+kubectl get configmap test-configmap -n <target-namespace> -o jsonpath='{.metadata.annotations}'
+```
+
+You should see:
+- `namespacesync.nsync.dev/source-namespace` set to the source namespace name
+- `namespacesync.nsync.dev/last-sync` set to a timestamp in RFC3339 format
+
+Cleanup:
+
+```bash
+kubectl delete namespacesync --all
+```
+
 ---
 
 ## 6. Full Cleanup

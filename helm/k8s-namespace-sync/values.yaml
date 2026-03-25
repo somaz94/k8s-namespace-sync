@@ -53,6 +53,12 @@ controller:
     level: "debug"
     encoder: "console"
     stacktraceLevel: "error"
+  # Extra environment variables for the controller container
+  env: []
+  # Example:
+  # env:
+  #   - name: RECONCILE_INTERVAL
+  #     value: "10m"
 
 service:
   type: ClusterIP

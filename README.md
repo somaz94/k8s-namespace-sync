@@ -345,6 +345,37 @@ kubectl get events --field-selector involvedObject.kind=NamespaceSync
 
 <br/>
 
+### Sync Metadata
+
+Synced resources are annotated with metadata that tracks their origin and sync status:
+
+| Annotation | Description |
+|------------|-------------|
+| `namespacesync.nsync.dev/source-namespace` | The namespace from which the resource was synced |
+| `namespacesync.nsync.dev/source-name` | The name of the source resource |
+| `namespacesync.nsync.dev/last-sync` | Timestamp of the last sync operation (RFC3339 format) |
+
+These annotations allow you to identify which resources are managed by NamespaceSync and trace them back to their source.
+
+<br/>
+
+### Status Conditions
+
+The controller sets a `Ready` condition on each NamespaceSync resource to reflect the current sync state:
+
+| Reason | Status | Description |
+|--------|--------|-------------|
+| `SyncComplete` | `True` | All target namespaces were synced successfully |
+| `PartialSync` | `True` | Some target namespaces were synced, but others failed |
+| `SyncFailed` | `False` | All target namespaces failed to sync |
+
+You can inspect the condition with:
+```bash
+kubectl get namespacesync <name> -o jsonpath='{.status.conditions[?(@.type=="Ready")]}'
+```
+
+<br/>
+
 ### Prometheus Metrics
 
 The controller exposes the following Prometheus metrics:
