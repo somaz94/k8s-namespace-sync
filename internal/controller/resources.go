@@ -85,7 +85,8 @@ func (r *NamespaceSyncReconciler) createOrUpdateSecret(ctx context.Context, secr
 	existingSecret.Data = secret.Data
 	existingSecret.StringData = secret.StringData
 	existingSecret.Type = secret.Type
-	r.copyLabelsAndAnnotations(&secret.ObjectMeta, &existingSecret.ObjectMeta)
+	existingSecret.Labels = secret.Labels
+	existingSecret.Annotations = secret.Annotations
 
 	if err := r.Update(ctx, &existingSecret); err != nil {
 		log.Error(err, "Failed to update Secret")
@@ -130,7 +131,8 @@ func (r *NamespaceSyncReconciler) createOrUpdateConfigMap(ctx context.Context, c
 	// Update existing configmap
 	existingConfigMap.Data = configMap.Data
 	existingConfigMap.BinaryData = configMap.BinaryData
-	r.copyLabelsAndAnnotations(&configMap.ObjectMeta, &existingConfigMap.ObjectMeta)
+	existingConfigMap.Labels = configMap.Labels
+	existingConfigMap.Annotations = configMap.Annotations
 
 	if err := r.Update(ctx, &existingConfigMap); err != nil {
 		log.Error(err, "Failed to update ConfigMap")
