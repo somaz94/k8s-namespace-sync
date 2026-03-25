@@ -2,10 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased (2026-03-16)
+## [v0.3.0](https://github.com/somaz94/k8s-namespace-sync/compare/v0.2.1...v0.3.0) (2026-03-25)
+
+### Features
+
+- improve status conditions with PartialSync and SyncFailed reasons ([52cb987](https://github.com/somaz94/k8s-namespace-sync/commit/52cb9879cc77804f3b9746e58662f14d31389ba4))
+- make reconciliation interval configurable via RECONCILE_INTERVAL env var ([a787e0b](https://github.com/somaz94/k8s-namespace-sync/commit/a787e0b03d7ebdf42ecee28eaddfa7ec6793a8de))
+- add event recording, complete metrics, periodic reconciliation ([105583b](https://github.com/somaz94/k8s-namespace-sync/commit/105583b4ad4722098316f4f072d496a788f4572e))
+- add CODEOWNERS ([95c4d74](https://github.com/somaz94/k8s-namespace-sync/commit/95c4d74f5adc8ce33a3d6b689404eb70c004bac5))
 
 ### Bug Fixes
 
+- prevent source-namespace annotation from being overwritten with target namespace ([34c6118](https://github.com/somaz94/k8s-namespace-sync/commit/34c61188ffb83283eafd162744a577bc6f567750))
+- restore Chart.yaml before gh-pages checkout in helm-release workflow ([1fb00b7](https://github.com/somaz94/k8s-namespace-sync/commit/1fb00b7a840297512720d407a8df99a4feed8f07))
+- prevent duplicate quote in bump-version.sh values.yaml sed pattern ([7b85fcf](https://github.com/somaz94/k8s-namespace-sync/commit/7b85fcf3fb07603beb8ec0bf7790fa98147db57b))
+- use GITHUB_TOKEN for dependabot auto merge ([896a939](https://github.com/somaz94/k8s-namespace-sync/commit/896a939eb8fd5dbc130b6a4fe4a71704d5ecdf1f))
+- re-declare ARG in final stage for OCI labels ([d7d288b](https://github.com/somaz94/k8s-namespace-sync/commit/d7d288b616d3068c375e51b9014610c6212309b6))
+- set imagePullPolicy=Always in helm test script ([c4dc522](https://github.com/somaz94/k8s-namespace-sync/commit/c4dc522a8f7fb959f0be04bd101aed0be923e25e))
 - skip major version tag deletion on first release ([f316438](https://github.com/somaz94/k8s-namespace-sync/commit/f3164380eb9827b155bd15e7fc97718a9d96760e))
 - add trap cleanup to Helm test ([3173134](https://github.com/somaz94/k8s-namespace-sync/commit/3173134926e18f9113fb462253cae304f155db14))
 - show full undeploy output in integration test cleanup ([3863411](https://github.com/somaz94/k8s-namespace-sync/commit/3863411c81efe04cec2e2f00284f5bb17800a358))
@@ -14,29 +27,48 @@ All notable changes to this project will be documented in this file.
 
 ### Code Refactoring
 
+- extract syncResourceList to reduce duplication in sync.go ([2dceab4](https://github.com/somaz94/k8s-namespace-sync/commit/2dceab434bd8d1afb948133f4f7e0afae4a458f4))
 - translate Korean comments to English ([ed8e30f](https://github.com/somaz94/k8s-namespace-sync/commit/ed8e30facfcaae172e7d6296e7195143b707ffa0))
 
 ### Documentation
 
+- update TESTING.md, HELM.md, README.md; add status condition unit tests ([53b0db5](https://github.com/somaz94/k8s-namespace-sync/commit/53b0db5b7844cf7e2e685e2777dce6f16a27514c))
+- update documentation for configurable reconcile interval and improved status ([a2ea840](https://github.com/somaz94/k8s-namespace-sync/commit/a2ea8402d95e2c9ba17f5e71ccb31bc2f714a1b6))
+- add DEVELOPMENT.md ([942d2a0](https://github.com/somaz94/k8s-namespace-sync/commit/942d2a0ea0ad59c0e39f7d7ba590186190a40a69))
+- add no-push rule to CLAUDE.md ([9d136aa](https://github.com/somaz94/k8s-namespace-sync/commit/9d136aadc77a933820b265baef2b92c164fa62ef))
+- add CLAUDE.md project guide ([eafd881](https://github.com/somaz94/k8s-namespace-sync/commit/eafd88131946c4b223d5c6b249dd1559cedaeefe))
+- add badges to README ([0ef59cc](https://github.com/somaz94/k8s-namespace-sync/commit/0ef59cca4e2263ef2169c559271baee543fb04a6))
 - unify installation structure and migrate to dist/ ([c100c61](https://github.com/somaz94/k8s-namespace-sync/commit/c100c61fb768bd124f9c3ce96ff030a5d32dfc7a))
 - add TESTING.md for test guide and procedures ([c81b63f](https://github.com/somaz94/k8s-namespace-sync/commit/c81b63fffb859dac27e8de361e8c9be2244bdaa3))
-- update CONTRIBUTORS.md ([da8cfe2](https://github.com/somaz94/k8s-namespace-sync/commit/da8cfe2cfafbd47dcb5b475b1f3b496dff225e0e))
-- update changelog ([8275d68](https://github.com/somaz94/k8s-namespace-sync/commit/8275d68ad373fd866a7f71203ec3a88e7da464fa))
+
+### Tests
+
+- add event recording, status conditions, and metadata annotation tests ([64017a2](https://github.com/somaz94/k8s-namespace-sync/commit/64017a270ddd8bbe223e3b27ff6de7e338dbad6c))
 
 ### Continuous Integration
 
+- restrict push trigger to main branch to prevent duplicate CI runs ([bd75245](https://github.com/somaz94/k8s-namespace-sync/commit/bd7524541f3c68a7a7cc3f81098e5a124a2a87c9))
+- add auto-generated PR body script for make pr ([51f9e2e](https://github.com/somaz94/k8s-namespace-sync/commit/51f9e2e3538b7b4fb8373466c4e8f9cc174550a8))
+- migrate gitlab-mirror workflow to multi-git-mirror action ([10c5696](https://github.com/somaz94/k8s-namespace-sync/commit/10c569622a0ce7e1a362edd606e99912bedc59f8))
+- use somaz94/contributors-action@v1 for contributors generation ([faeaf6b](https://github.com/somaz94/k8s-namespace-sync/commit/faeaf6b1f5f7e320003cebbfddaaf65115bbd7b4))
+- use major-tag-action for version tag updates ([b6d1ead](https://github.com/somaz94/k8s-namespace-sync/commit/b6d1ead6dd42d0f96212c97de4d1b23ba45e6730))
 - migrate changelog generator to go-changelog-action ([6048012](https://github.com/somaz94/k8s-namespace-sync/commit/60480128efdfa91147288b5e6bfbc6ed57c82e87))
 - unify changelog-generator with flexible tag pattern ([a0522ae](https://github.com/somaz94/k8s-namespace-sync/commit/a0522ae693cf9d04e19a94f1bfe6eee9c69e828d))
 
 ### Chores
 
+- bump version to v0.3.0 ([ec69e99](https://github.com/somaz94/k8s-namespace-sync/commit/ec69e99887fe19639f6fac1a4687b0a882ab96ef))
+- **deps:** bump the go-minor group with 3 updates (#41) ([#41](https://github.com/somaz94/k8s-namespace-sync/pull/41)) ([77a77c7](https://github.com/somaz94/k8s-namespace-sync/commit/77a77c701fefe7cccadbe98def72c05a12901e09))
+- add workflow Makefile targets (check-gh, branch, pr) ([573ff63](https://github.com/somaz94/k8s-namespace-sync/commit/573ff63af60ad64e5f4b4e8165e91eca6344efe9))
+- add build-time version injection and OCI labels to Dockerfile ([691cba0](https://github.com/somaz94/k8s-namespace-sync/commit/691cba0c3755bba00551b43109dc08709994c128))
+- add version check and bump-version script ([46264a7](https://github.com/somaz94/k8s-namespace-sync/commit/46264a7c4a4eecc169a44abe424000367a9428df))
 - change license from MIT to Apache 2.0 ([a906c5b](https://github.com/somaz94/k8s-namespace-sync/commit/a906c5bd51ae7921f7f5fe130ee70a3e8518bbf3))
 
 ### Contributors
 
-- GitHub Action
-- GitHub Actions
 - somaz
+
+<br/>
 
 ## [v0.2.1](https://github.com/somaz94/k8s-namespace-sync/compare/v0.2.0...v0.2.1) (2026-03-11)
 
@@ -116,9 +148,9 @@ All notable changes to this project will be documented in this file.
 
 ### Contributors
 
-- GitHub Actions
-- dependabot[bot]
 - somaz
+
+<br/>
 
 ## [v0.2.0](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.7...v0.2.0) (2025-02-24)
 
@@ -147,9 +179,9 @@ All notable changes to this project will be documented in this file.
 
 ### Contributors
 
-- GitHub Actions
-- dependabot[bot]
 - somaz
+
+<br/>
 
 ## [v0.1.7](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.6...v0.1.7) (2025-02-21)
 
@@ -180,9 +212,9 @@ All notable changes to this project will be documented in this file.
 
 ### Contributors
 
-- GitHub Action
-- dependabot[bot]
 - somaz
+
+<br/>
 
 ## [v0.1.6](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.5...v0.1.6) (2024-12-20)
 
@@ -212,6 +244,8 @@ All notable changes to this project will be documented in this file.
 
 - somaz
 
+<br/>
+
 ## [v0.1.5](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.4...v0.1.5) (2025-02-21)
 
 ### Bug Fixes
@@ -230,6 +264,8 @@ All notable changes to this project will be documented in this file.
 ### Contributors
 
 - somaz
+
+<br/>
 
 ## [v0.1.4](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.3...v0.1.4) (2025-02-21)
 
@@ -255,6 +291,8 @@ All notable changes to this project will be documented in this file.
 
 - somaz
 
+<br/>
+
 ## [v0.1.3](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.2...v0.1.3) (2025-02-21)
 
 ### Documentation
@@ -269,6 +307,8 @@ All notable changes to this project will be documented in this file.
 ### Contributors
 
 - somaz
+
+<br/>
 
 ## [v0.1.2](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.1...v0.1.2) (2025-02-21)
 
@@ -285,6 +325,8 @@ All notable changes to this project will be documented in this file.
 
 - somaz
 
+<br/>
+
 ## [v0.1.1](https://github.com/somaz94/k8s-namespace-sync/compare/v0.1.0...v0.1.1) (2025-02-21)
 
 ### Documentation
@@ -299,7 +341,9 @@ All notable changes to this project will be documented in this file.
 
 - somaz
 
-## v0.1.0 (2025-02-21)
+<br/>
+
+## [v0.1.0](https://github.com/somaz94/k8s-namespace-sync/releases/tag/v0.1.0) (2025-02-21)
 
 ### Bug Fixes
 
@@ -317,4 +361,6 @@ All notable changes to this project will be documented in this file.
 ### Contributors
 
 - somaz
+
+<br/>
 
