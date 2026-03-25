@@ -133,7 +133,7 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// Sync to each namespace except the source and excluded ones
 	for _, ns := range namespaceList.Items {
-		if r.shouldSyncToNamespace(ns.Name, namespacesync) {
+		if r.shouldSyncToNamespace(ctx, ns.Name, namespacesync) {
 			if err := r.syncResources(ctx, namespacesync, ns.Name); err != nil {
 				log.Error(err, "Failed to sync resources", "namespace", ns.Name)
 				failedNamespaces[ns.Name] = err.Error()

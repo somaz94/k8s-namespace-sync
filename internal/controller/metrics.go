@@ -73,3 +73,21 @@ func init() {
 		resourceCount,
 	)
 }
+
+// Metric recording helpers
+
+func recordSyncSuccess(namespace, resourceType string) {
+	syncSuccessCounter.WithLabelValues(namespace, resourceType).Inc()
+}
+
+func recordSyncFailure(namespace, resourceType string) {
+	syncFailureCounter.WithLabelValues(namespace, resourceType).Inc()
+}
+
+func recordCleanupSuccess(namespace, resourceType string) {
+	cleanupSuccessCounter.WithLabelValues(namespace, resourceType).Inc()
+}
+
+func recordCleanupFailure(namespace, resourceType string) {
+	cleanupFailureCounter.WithLabelValues(namespace, resourceType).Inc()
+}

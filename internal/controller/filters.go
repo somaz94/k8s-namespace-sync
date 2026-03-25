@@ -39,8 +39,8 @@ func (r *NamespaceSyncReconciler) shouldSyncResource(name string, filter *syncv1
 }
 
 // shouldSyncToNamespace determines if resources should be synced to the given namespace
-func (r *NamespaceSyncReconciler) shouldSyncToNamespace(namespace string, namespaceSync *syncv1.NamespaceSync) bool {
-	logger := log.FromContext(context.Background()).WithValues("namespace", namespace)
+func (r *NamespaceSyncReconciler) shouldSyncToNamespace(ctx context.Context, namespace string, namespaceSync *syncv1.NamespaceSync) bool {
+	logger := log.FromContext(ctx).WithValues("namespace", namespace)
 
 	// Check if it is a system namespace
 	if r.isSystemNamespace(namespace) {
@@ -81,20 +81,4 @@ func (r *NamespaceSyncReconciler) isSystemNamespace(namespace string) bool {
 		"k8s-namespace-sync-system",
 	}
 	return contains(systemNamespaces, namespace)
-}
-
-// shouldSkipNamespace checks if the namespace should be skipped for synchronization
-func (r *NamespaceSyncReconciler) shouldSkipNamespace(namespace, sourceNamespace string, excludedNamespaces []string) bool {
-	// Check if it is a system namespace
-	if r.isSystemNamespace(namespace) {
-		return true
-	}
-
-	// Skip if it is the same as the source namespace
-	if namespace == sourceNamespace {
-		return true
-	}
-
-	// Check if the namespace is in the excluded namespaces list
-	return contains(excludedNamespaces, namespace)
 }

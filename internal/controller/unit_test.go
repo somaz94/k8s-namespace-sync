@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"testing"
 
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
@@ -170,36 +171,9 @@ func TestIsSystemNamespace(t *testing.T) {
 	}
 }
 
-func TestShouldSkipNamespace(t *testing.T) {
-	r := &NamespaceSyncReconciler{}
-
-	tests := []struct {
-		name      string
-		namespace string
-		sourceNs  string
-		excluded  []string
-		want      bool
-	}{
-		{"system namespace", "kube-system", "source-ns", nil, true},
-		{"source namespace", "source-ns", "source-ns", nil, true},
-		{"excluded namespace", "excluded-ns", "source-ns", []string{"excluded-ns"}, true},
-		{"normal namespace", "target-ns", "source-ns", []string{"other-ns"}, false},
-		{"not in exclude list", "target-ns", "source-ns", []string{"excluded-ns"}, false},
-		{"empty exclude list", "target-ns", "source-ns", nil, false},
-		{"default namespace", "default", "source-ns", nil, true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := r.shouldSkipNamespace(tt.namespace, tt.sourceNs, tt.excluded); got != tt.want {
-				t.Errorf("shouldSkipNamespace(%q, %q, %v) = %v, want %v", tt.namespace, tt.sourceNs, tt.excluded, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestShouldSyncToNamespace(t *testing.T) {
 	r := &NamespaceSyncReconciler{}
+	ctx := context.Background()
 
 	tests := []struct {
 		name      string
@@ -268,7 +242,7 @@ func TestShouldSyncToNamespace(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := r.shouldSyncToNamespace(tt.namespace, tt.sync); got != tt.want {
+			if got := r.shouldSyncToNamespace(ctx, tt.namespace, tt.sync); got != tt.want {
 				t.Errorf("shouldSyncToNamespace(%q) = %v, want %v", tt.namespace, got, tt.want)
 			}
 		})
@@ -307,10 +281,10 @@ func TestCopyLabelsAndAnnotations(t *testing.T) {
 		if _, ok := dst.Annotations["kubernetes.io/description"]; ok {
 			t.Error("kubernetes.io/ annotation should not be copied")
 		}
-		if dst.Annotations["namespacesync.nsync.dev/source-namespace"] != "source-ns" {
+		if dst.Annotations[AnnotationSourceNamespace] != "source-ns" {
 			t.Error("expected sync metadata annotation for source-namespace")
 		}
-		if dst.Annotations["namespacesync.nsync.dev/source-name"] != "source" {
+		if dst.Annotations[AnnotationSourceName] != "source" {
 			t.Error("expected sync metadata annotation for source-name")
 		}
 	})

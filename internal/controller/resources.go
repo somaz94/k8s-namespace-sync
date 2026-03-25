@@ -17,7 +17,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-const finalizerName = "namespacesync.nsync.dev/finalizer"
+const (
+	finalizerName             = "namespacesync.nsync.dev/finalizer"
+	AnnotationSourceNamespace = "namespacesync.nsync.dev/source-namespace"
+	AnnotationSourceName      = "namespacesync.nsync.dev/source-name"
+	AnnotationLastSync        = "namespacesync.nsync.dev/last-sync"
+)
 
 // handleDeletionAndStatus handles resource deletion and status updates
 func (r *NamespaceSyncReconciler) handleDeletionAndStatus(ctx context.Context, namespacesync *syncv1.NamespaceSync) (ctrl.Result, error) {
@@ -52,96 +57,50 @@ func (r *NamespaceSyncReconciler) handleDeletionAndStatus(ctx context.Context, n
 	return ctrl.Result{}, nil
 }
 
-// createOrUpdateSecret handles the creation or update of a Secret
-func (r *NamespaceSyncReconciler) createOrUpdateSecret(ctx context.Context, secret *corev1.Secret) error {
+// createOrUpdateResource is a generic function that handles creation or update of a Kubernetes resource.
+// updateFields copies resource-specific data from desired to existing.
+func createOrUpdateResource[T client.Object](
+	r *NamespaceSyncReconciler,
+	ctx context.Context,
+	desired T,
+	existing T,
+	resourceType string,
+	updateFields func(src, dst T),
+) error {
 	log := log.FromContext(ctx).WithValues(
-		"namespace", secret.Namespace,
-		"name", secret.Name,
+		"namespace", desired.GetNamespace(),
+		"name", desired.GetName(),
 	)
 
-	// Check if secret exists in target namespace
-	var existingSecret corev1.Secret
 	err := r.Get(ctx, types.NamespacedName{
-		Namespace: secret.Namespace,
-		Name:      secret.Name,
-	}, &existingSecret)
+		Namespace: desired.GetNamespace(),
+		Name:      desired.GetName(),
+	}, existing)
 
 	if err != nil {
 		if errors.IsNotFound(err) {
-			// Create new secret if it doesn't exist
-			if err := r.Create(ctx, secret); err != nil {
-				log.Error(err, "Failed to create Secret")
-				syncFailureCounter.WithLabelValues(secret.Namespace, "secret").Inc()
+			if err := r.Create(ctx, desired); err != nil {
+				log.Error(err, fmt.Sprintf("Failed to create %s", resourceType))
+				recordSyncFailure(desired.GetNamespace(), resourceType)
 				return err
 			}
-			log.Info("Successfully created Secret")
-			syncSuccessCounter.WithLabelValues(secret.Namespace, "secret").Inc()
+			log.Info(fmt.Sprintf("Successfully created %s", resourceType))
+			recordSyncSuccess(desired.GetNamespace(), resourceType)
 			return nil
 		}
 		return err
 	}
 
-	// Update existing secret
-	existingSecret.Data = secret.Data
-	existingSecret.StringData = secret.StringData
-	existingSecret.Type = secret.Type
-	existingSecret.Labels = secret.Labels
-	existingSecret.Annotations = secret.Annotations
+	updateFields(desired, existing)
 
-	if err := r.Update(ctx, &existingSecret); err != nil {
-		log.Error(err, "Failed to update Secret")
-		syncFailureCounter.WithLabelValues(secret.Namespace, "secret").Inc()
+	if err := r.Update(ctx, existing); err != nil {
+		log.Error(err, fmt.Sprintf("Failed to update %s", resourceType))
+		recordSyncFailure(desired.GetNamespace(), resourceType)
 		return err
 	}
 
-	log.Info("Successfully updated Secret")
-	syncSuccessCounter.WithLabelValues(secret.Namespace, "secret").Inc()
-	return nil
-}
-
-// createOrUpdateConfigMap handles the creation or update of a ConfigMap
-func (r *NamespaceSyncReconciler) createOrUpdateConfigMap(ctx context.Context, configMap *corev1.ConfigMap) error {
-	log := log.FromContext(ctx).WithValues(
-		"namespace", configMap.Namespace,
-		"name", configMap.Name,
-	)
-
-	// Try to create or update the configmap
-	var existingConfigMap corev1.ConfigMap
-	err := r.Get(ctx, client.ObjectKey{
-		Namespace: configMap.Namespace,
-		Name:      configMap.Name,
-	}, &existingConfigMap)
-
-	if err != nil {
-		if errors.IsNotFound(err) {
-			// Create new configmap if it doesn't exist
-			if err := r.Create(ctx, configMap); err != nil {
-				log.Error(err, "Failed to create ConfigMap")
-				syncFailureCounter.WithLabelValues(configMap.Namespace, "configmap").Inc()
-				return err
-			}
-			log.Info("Successfully created ConfigMap")
-			syncSuccessCounter.WithLabelValues(configMap.Namespace, "configmap").Inc()
-			return nil
-		}
-		return err
-	}
-
-	// Update existing configmap
-	existingConfigMap.Data = configMap.Data
-	existingConfigMap.BinaryData = configMap.BinaryData
-	existingConfigMap.Labels = configMap.Labels
-	existingConfigMap.Annotations = configMap.Annotations
-
-	if err := r.Update(ctx, &existingConfigMap); err != nil {
-		log.Error(err, "Failed to update ConfigMap")
-		syncFailureCounter.WithLabelValues(configMap.Namespace, "configmap").Inc()
-		return err
-	}
-
-	log.Info("Successfully updated ConfigMap")
-	syncSuccessCounter.WithLabelValues(configMap.Namespace, "configmap").Inc()
+	log.Info(fmt.Sprintf("Successfully updated %s", resourceType))
+	recordSyncSuccess(desired.GetNamespace(), resourceType)
 	return nil
 }
 
@@ -167,9 +126,9 @@ func (r *NamespaceSyncReconciler) copyLabelsAndAnnotations(src, dst *metav1.Obje
 	}
 
 	// Add sync metadata
-	dst.Annotations["namespacesync.nsync.dev/source-namespace"] = src.Namespace
-	dst.Annotations["namespacesync.nsync.dev/source-name"] = src.Name
-	dst.Annotations["namespacesync.nsync.dev/last-sync"] = time.Now().Format(time.RFC3339)
+	dst.Annotations[AnnotationSourceNamespace] = src.Namespace
+	dst.Annotations[AnnotationSourceName] = src.Name
+	dst.Annotations[AnnotationLastSync] = time.Now().Format(time.RFC3339)
 }
 
 // cleanupSyncedResources cleans up all synced resources
@@ -185,7 +144,7 @@ func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, na
 
 	var errs []error
 	for _, ns := range namespaceList.Items {
-		if r.shouldSkipNamespace(ns.Name, namespaceSync.Spec.SourceNamespace, namespaceSync.Spec.Exclude) {
+		if !r.shouldSyncToNamespace(ctx, ns.Name, namespaceSync) {
 			continue
 		}
 
@@ -201,13 +160,13 @@ func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, na
 				log.Error(err, "Failed to delete synced Secret",
 					"namespace", ns.Name,
 					"name", secretName)
-				cleanupFailureCounter.WithLabelValues(ns.Name, "secret").Inc()
+				recordCleanupFailure(ns.Name, "secret")
 				errs = append(errs, err)
 			} else {
 				log.Info("Successfully deleted Secret",
 					"namespace", ns.Name,
 					"name", secretName)
-				cleanupSuccessCounter.WithLabelValues(ns.Name, "secret").Inc()
+				recordCleanupSuccess(ns.Name, "secret")
 			}
 		}
 
@@ -223,13 +182,13 @@ func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, na
 				log.Error(err, "Failed to delete synced ConfigMap",
 					"namespace", ns.Name,
 					"name", configMapName)
-				cleanupFailureCounter.WithLabelValues(ns.Name, "configmap").Inc()
+				recordCleanupFailure(ns.Name, "configmap")
 				errs = append(errs, err)
 			} else {
 				log.Info("Successfully deleted ConfigMap",
 					"namespace", ns.Name,
 					"name", configMapName)
-				cleanupSuccessCounter.WithLabelValues(ns.Name, "configmap").Inc()
+				recordCleanupSuccess(ns.Name, "configmap")
 			}
 		}
 	}

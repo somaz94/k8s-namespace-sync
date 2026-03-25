@@ -37,7 +37,7 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncs(ctx context.Context, obj cl
 		}
 
 		// 2. If a target namespace was created/modified
-		if !r.shouldSkipNamespace(namespace.Name, ns.Spec.SourceNamespace, ns.Spec.Exclude) {
+		if r.shouldSyncToNamespace(ctx, namespace.Name, &ns) {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: types.NamespacedName{
 					Name:      ns.Name,
@@ -53,10 +53,17 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncs(ctx context.Context, obj cl
 	return requests
 }
 
-// findNamespaceSyncsForSecret handles Secret events and returns related NamespaceSync requests
-func (r *NamespaceSyncReconciler) findNamespaceSyncsForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
+// findNamespaceSyncsForResource is a generic handler that finds NamespaceSyncs
+// related to a resource change. getNames extracts the relevant resource name list
+// from a NamespaceSync spec.
+func (r *NamespaceSyncReconciler) findNamespaceSyncsForResource(
+	ctx context.Context,
+	resourceNamespace string,
+	resourceName string,
+	resourceType string,
+	getNames func(*syncv1.NamespaceSync) []string,
+) []reconcile.Request {
 	log := log.FromContext(ctx)
-	secret := obj.(*corev1.Secret)
 	var namespaceSyncs syncv1.NamespaceSyncList
 	if err := r.List(ctx, &namespaceSyncs); err != nil {
 		log.Error(err, "Failed to list NamespaceSyncs")
@@ -65,58 +72,35 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncsForSecret(ctx context.Contex
 
 	var requests []reconcile.Request
 	for _, ns := range namespaceSyncs.Items {
-		// Check if this secret is from source namespace or target namespaces
-		isSourceSecret := ns.Spec.SourceNamespace == secret.Namespace
-		isTargetSecret := r.shouldSyncToNamespace(secret.Namespace, &ns)
+		isSource := ns.Spec.SourceNamespace == resourceNamespace
+		isTarget := r.shouldSyncToNamespace(ctx, resourceNamespace, &ns)
 
-		// Trigger reconciliation for both source and target namespace events
-		if (isSourceSecret && contains(ns.Spec.SecretName, secret.Name)) ||
-			(isTargetSecret && contains(ns.Spec.SecretName, secret.Name)) {
+		if (isSource || isTarget) && contains(getNames(&ns), resourceName) {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: types.NamespacedName{
 					Name:      ns.Name,
 					Namespace: ns.Namespace,
 				},
 			})
-			log.V(1).Info("Queuing reconcile for NamespaceSync due to Secret change",
+			log.V(1).Info("Queuing reconcile for NamespaceSync due to "+resourceType+" change",
 				"namespacesync", ns.Name,
-				"secret", secret.Name,
-				"namespace", secret.Namespace)
+				resourceType, resourceName,
+				"namespace", resourceNamespace)
 		}
 	}
 	return requests
 }
 
+// findNamespaceSyncsForSecret handles Secret events and returns related NamespaceSync requests
+func (r *NamespaceSyncReconciler) findNamespaceSyncsForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
+	secret := obj.(*corev1.Secret)
+	return r.findNamespaceSyncsForResource(ctx, secret.Namespace, secret.Name, "Secret",
+		func(ns *syncv1.NamespaceSync) []string { return ns.Spec.SecretName })
+}
+
 // findNamespaceSyncsForConfigMap handles ConfigMap events and returns related NamespaceSync requests
 func (r *NamespaceSyncReconciler) findNamespaceSyncsForConfigMap(ctx context.Context, obj client.Object) []reconcile.Request {
-	log := log.FromContext(ctx)
-	configMap := obj.(*corev1.ConfigMap)
-	var namespaceSyncs syncv1.NamespaceSyncList
-	if err := r.List(ctx, &namespaceSyncs); err != nil {
-		log.Error(err, "Failed to list NamespaceSyncs")
-		return nil
-	}
-
-	var requests []reconcile.Request
-	for _, ns := range namespaceSyncs.Items {
-		// Check if this configmap is from source namespace or target namespaces
-		isSourceConfigMap := ns.Spec.SourceNamespace == configMap.Namespace
-		isTargetConfigMap := r.shouldSyncToNamespace(configMap.Namespace, &ns)
-
-		// Trigger reconciliation for both source and target namespace events
-		if (isSourceConfigMap && contains(ns.Spec.ConfigMapName, configMap.Name)) ||
-			(isTargetConfigMap && contains(ns.Spec.ConfigMapName, configMap.Name)) {
-			requests = append(requests, reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Name:      ns.Name,
-					Namespace: ns.Namespace,
-				},
-			})
-			log.V(1).Info("Queuing reconcile for NamespaceSync due to ConfigMap change",
-				"namespacesync", ns.Name,
-				"configmap", configMap.Name,
-				"namespace", configMap.Namespace)
-		}
-	}
-	return requests
+	cm := obj.(*corev1.ConfigMap)
+	return r.findNamespaceSyncsForResource(ctx, cm.Namespace, cm.Name, "ConfigMap",
+		func(ns *syncv1.NamespaceSync) []string { return ns.Spec.ConfigMapName })
 }

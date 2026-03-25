@@ -54,7 +54,7 @@ func (r *NamespaceSyncReconciler) syncResources(ctx context.Context, namespaceSy
 
 	// Sync ConfigMaps
 	return r.syncResourceList(ctx, namespaceSync.Spec.ConfigMapName, configMapFilter, func(name string) error {
-		return r.syncConfigMap(ctx, namespaceSync, targetNamespace, name)
+		return r.syncConfigMap(ctx, namespaceSync.Spec.SourceNamespace, targetNamespace, name)
 	}, "configmap", targetNamespace)
 }
 
@@ -69,7 +69,6 @@ func (r *NamespaceSyncReconciler) syncSecret(ctx context.Context, sourceNamespac
 		Name:      secretName,
 	}, &secret); err != nil {
 		if errors.IsNotFound(err) {
-			// Source secret was deleted, delete from target namespace
 			targetSecret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      secretName,
@@ -87,7 +86,6 @@ func (r *NamespaceSyncReconciler) syncSecret(ctx context.Context, sourceNamespac
 		return err
 	}
 
-	// Create or update secret in target namespace
 	newSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
@@ -98,21 +96,27 @@ func (r *NamespaceSyncReconciler) syncSecret(ctx context.Context, sourceNamespac
 	}
 	r.copyLabelsAndAnnotations(&secret.ObjectMeta, &newSecret.ObjectMeta)
 
-	return r.createOrUpdateSecret(ctx, newSecret)
+	return createOrUpdateResource(r, ctx, newSecret, &corev1.Secret{}, "secret",
+		func(src, dst *corev1.Secret) {
+			dst.Data = src.Data
+			dst.StringData = src.StringData
+			dst.Type = src.Type
+			dst.Labels = src.Labels
+			dst.Annotations = src.Annotations
+		})
 }
 
 // syncConfigMap synchronizes a single configmap to the target namespace
-func (r *NamespaceSyncReconciler) syncConfigMap(ctx context.Context, namespaceSync *syncv1.NamespaceSync, targetNamespace, configMapName string) error {
+func (r *NamespaceSyncReconciler) syncConfigMap(ctx context.Context, sourceNamespace, targetNamespace, configMapName string) error {
 	log := log.FromContext(ctx)
 
 	// Get source configmap
 	var configMap corev1.ConfigMap
 	if err := r.Get(ctx, client.ObjectKey{
-		Namespace: namespaceSync.Spec.SourceNamespace,
+		Namespace: sourceNamespace,
 		Name:      configMapName,
 	}, &configMap); err != nil {
 		if errors.IsNotFound(err) {
-			// Source configmap was deleted, delete from target namespace
 			targetConfigMap := &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      configMapName,
@@ -130,7 +134,6 @@ func (r *NamespaceSyncReconciler) syncConfigMap(ctx context.Context, namespaceSy
 		return err
 	}
 
-	// Create or update configmap in target namespace
 	newConfigMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      configMapName,
@@ -141,5 +144,11 @@ func (r *NamespaceSyncReconciler) syncConfigMap(ctx context.Context, namespaceSy
 	}
 	r.copyLabelsAndAnnotations(&configMap.ObjectMeta, &newConfigMap.ObjectMeta)
 
-	return r.createOrUpdateConfigMap(ctx, newConfigMap)
+	return createOrUpdateResource(r, ctx, newConfigMap, &corev1.ConfigMap{}, "configmap",
+		func(src, dst *corev1.ConfigMap) {
+			dst.Data = src.Data
+			dst.BinaryData = src.BinaryData
+			dst.Labels = src.Labels
+			dst.Annotations = src.Annotations
+		})
 }
