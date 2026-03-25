@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.3.1](https://github.com/somaz94/k8s-namespace-sync/compare/v0.3.0...v0.3.1) (2026-03-25)
+
+### Code Refactoring
+
+- cleanup duplication, structured logging, and errors.Join ([2211027](https://github.com/somaz94/k8s-namespace-sync/commit/22110271a6eed70575bb190125b2c5df74db235e))
+- eliminate code duplication across controller with generics and shared helpers ([5d3539d](https://github.com/somaz94/k8s-namespace-sync/commit/5d3539d38c5e3384848f9473b5fbb080f6d44113))
+
+### Tests
+
+- add coverage for cleanup error paths and createOrUpdateResource Get error ([58ddddf](https://github.com/somaz94/k8s-namespace-sync/commit/58ddddf7f05a74a22fd0a2e7ba3cb534fd5234da))
+
+### Continuous Integration
+
+- use generate_release_notes instead of RELEASE.md ([02f7ea8](https://github.com/somaz94/k8s-namespace-sync/commit/02f7ea8ca85aa1c5e7751b6a5cbdec79ad7035cf))
+
+### Chores
+
+- bump version to v0.3.1 ([6f68a38](https://github.com/somaz94/k8s-namespace-sync/commit/6f68a383ffc7baeefe44dba60438a0b47bb0b929))
+
+### Contributors
+
+- somaz
+
+<br/>
+
 ## [v0.3.0](https://github.com/somaz94/k8s-namespace-sync/compare/v0.2.1...v0.3.0) (2026-03-25)
 
 ### Features
