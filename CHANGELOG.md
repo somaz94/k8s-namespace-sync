@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 
 ### Continuous Integration
 
+- revert to body_path RELEASE.md in release workflow ([a84d69b](https://github.com/somaz94/k8s-namespace-sync/commit/a84d69be701875dc1125f11db297c743964f5d7d))
 - use generate_release_notes instead of RELEASE.md ([02f7ea8](https://github.com/somaz94/k8s-namespace-sync/commit/02f7ea8ca85aa1c5e7751b6a5cbdec79ad7035cf))
 
 ### Chores
