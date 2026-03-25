@@ -2,13 +2,13 @@ package controller
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"time"
 
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -46,7 +46,7 @@ func (r *NamespaceSyncReconciler) handleDeletionAndStatus(ctx context.Context, n
 		controllerutil.RemoveFinalizer(namespacesync, finalizerName)
 		if err := r.Update(ctx, namespacesync); err != nil {
 			// Ignore if the resource has already been deleted
-			if errors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) {
 				return ctrl.Result{}, nil
 			}
 			log.Error(err, "Failed to remove finalizer")
@@ -78,13 +78,13 @@ func createOrUpdateResource[T client.Object](
 	}, existing)
 
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			if err := r.Create(ctx, desired); err != nil {
-				log.Error(err, fmt.Sprintf("Failed to create %s", resourceType))
+				log.Error(err, "Failed to create resource", "resourceType", resourceType)
 				recordSyncFailure(desired.GetNamespace(), resourceType)
 				return err
 			}
-			log.Info(fmt.Sprintf("Successfully created %s", resourceType))
+			log.Info("Successfully created resource", "resourceType", resourceType)
 			recordSyncSuccess(desired.GetNamespace(), resourceType)
 			return nil
 		}
@@ -94,12 +94,12 @@ func createOrUpdateResource[T client.Object](
 	updateFields(desired, existing)
 
 	if err := r.Update(ctx, existing); err != nil {
-		log.Error(err, fmt.Sprintf("Failed to update %s", resourceType))
+		log.Error(err, "Failed to update resource", "resourceType", resourceType)
 		recordSyncFailure(desired.GetNamespace(), resourceType)
 		return err
 	}
 
-	log.Info(fmt.Sprintf("Successfully updated %s", resourceType))
+	log.Info("Successfully updated resource", "resourceType", resourceType)
 	recordSyncSuccess(desired.GetNamespace(), resourceType)
 	return nil
 }
@@ -131,6 +131,37 @@ func (r *NamespaceSyncReconciler) copyLabelsAndAnnotations(src, dst *metav1.Obje
 	dst.Annotations[AnnotationLastSync] = time.Now().Format(time.RFC3339)
 }
 
+// cleanupResource deletes a list of named resources from the given namespace.
+// deleteFunc creates the object stub for deletion.
+func (r *NamespaceSyncReconciler) cleanupResource(
+	ctx context.Context,
+	namespace string,
+	names []string,
+	resourceType string,
+	newObj func(name, namespace string) client.Object,
+) []error {
+	log := log.FromContext(ctx)
+	var errs []error
+	for _, name := range names {
+		obj := newObj(name, namespace)
+		if err := r.Delete(ctx, obj); err != nil && !apierrors.IsNotFound(err) {
+			log.Error(err, "Failed to delete synced resource",
+				"resourceType", resourceType,
+				"namespace", namespace,
+				"name", name)
+			recordCleanupFailure(namespace, resourceType)
+			errs = append(errs, err)
+		} else {
+			log.Info("Successfully deleted resource",
+				"resourceType", resourceType,
+				"namespace", namespace,
+				"name", name)
+			recordCleanupSuccess(namespace, resourceType)
+		}
+	}
+	return errs
+}
+
 // cleanupSyncedResources cleans up all synced resources
 func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, namespaceSync *syncv1.NamespaceSync) error {
 	log := log.FromContext(ctx)
@@ -148,55 +179,21 @@ func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, na
 			continue
 		}
 
-		// Delete Secrets
-		for _, secretName := range namespaceSync.Spec.SecretName {
-			secret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      secretName,
-					Namespace: ns.Name,
-				},
-			}
-			if err := r.Delete(ctx, secret); err != nil && !errors.IsNotFound(err) {
-				log.Error(err, "Failed to delete synced Secret",
-					"namespace", ns.Name,
-					"name", secretName)
-				recordCleanupFailure(ns.Name, "secret")
-				errs = append(errs, err)
-			} else {
-				log.Info("Successfully deleted Secret",
-					"namespace", ns.Name,
-					"name", secretName)
-				recordCleanupSuccess(ns.Name, "secret")
-			}
-		}
+		errs = append(errs, r.cleanupResource(ctx, ns.Name, namespaceSync.Spec.SecretName, "secret",
+			func(name, namespace string) client.Object {
+				return &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
+			})...)
 
-		// Delete ConfigMaps
-		for _, configMapName := range namespaceSync.Spec.ConfigMapName {
-			configMap := &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      configMapName,
-					Namespace: ns.Name,
-				},
-			}
-			if err := r.Delete(ctx, configMap); err != nil && !errors.IsNotFound(err) {
-				log.Error(err, "Failed to delete synced ConfigMap",
-					"namespace", ns.Name,
-					"name", configMapName)
-				recordCleanupFailure(ns.Name, "configmap")
-				errs = append(errs, err)
-			} else {
-				log.Info("Successfully deleted ConfigMap",
-					"namespace", ns.Name,
-					"name", configMapName)
-				recordCleanupSuccess(ns.Name, "configmap")
-			}
-		}
+		errs = append(errs, r.cleanupResource(ctx, ns.Name, namespaceSync.Spec.ConfigMapName, "configmap",
+			func(name, namespace string) client.Object {
+				return &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
+			})...)
 	}
 
 	log.Info("Completed cleanup of synced resources")
 
 	if len(errs) > 0 {
-		return fmt.Errorf("encountered errors during cleanup: %v", errs)
+		return errors.Join(errs...)
 	}
 	return nil
 }

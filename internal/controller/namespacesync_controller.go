@@ -57,7 +57,7 @@ type NamespaceSyncReconciler struct {
 }
 
 func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.Log.WithValues("request_name", req.Name, "request_namespace", req.Namespace)
+	log := log.FromContext(ctx).WithValues("request_name", req.Name, "request_namespace", req.Namespace)
 	log.Info("=== Reconcile function called ===")
 
 	// Get NamespaceSync resource

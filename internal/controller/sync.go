@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -22,10 +21,10 @@ func (r *NamespaceSyncReconciler) syncResourceList(ctx context.Context, names []
 			continue
 		}
 		if err := syncFn(name); err != nil {
-			log.Error(err, fmt.Sprintf("Failed to sync %s", resourceType), "name", name, "targetNamespace", targetNamespace)
+			log.Error(err, "Failed to sync resource", "resourceType", resourceType, "name", name, "targetNamespace", targetNamespace)
 			return err
 		}
-		log.Info(fmt.Sprintf("Successfully synced %s", resourceType), "name", name, "targetNamespace", targetNamespace)
+		log.Info("Successfully synced resource", "resourceType", resourceType, "name", name, "targetNamespace", targetNamespace)
 	}
 	return nil
 }
