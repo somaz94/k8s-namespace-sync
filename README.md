@@ -66,7 +66,7 @@ helm install k8s-namespace-sync k8s-namespace-sync/k8s-namespace-sync
 
 # Or install with custom values
 helm install k8s-namespace-sync k8s-namespace-sync/k8s-namespace-sync \
-  --set image.tag=v0.2.1 \
+  --set image.tag=v0.3.0 \
   --namespace k8s-namespace-sync-system --create-namespace
 ```
 
@@ -93,7 +93,7 @@ cd k8s-namespace-sync
 make install
 
 # Deploy the controller
-make deploy IMG=somaz940/k8s-namespace-sync:v0.2.1
+make deploy IMG=somaz940/k8s-namespace-sync:v0.3.0
 ```
 
 <br/>
