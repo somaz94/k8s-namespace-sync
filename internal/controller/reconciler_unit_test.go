@@ -1001,3 +1001,147 @@ func TestFindNamespaceSyncsForConfigMap(t *testing.T) {
 		t.Error("expected no reconcile for unrelated configmap")
 	}
 }
+
+func TestCleanupResource_DeleteError(t *testing.T) {
+	scheme := newTestScheme()
+
+	targetNs := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "cleanup-del-err-ns"}}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(targetNs).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Delete: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+				return fmt.Errorf("delete permission denied")
+			},
+		}).
+		Build()
+
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	errs := r.cleanupResource(context.Background(), "cleanup-del-err-ns", []string{"secret1", "secret2"}, "secret",
+		func(name, namespace string) client.Object {
+			return &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
+		})
+	if len(errs) != 2 {
+		t.Errorf("expected 2 errors from delete failures, got %d", len(errs))
+	}
+}
+
+func TestCleanupSyncedResources_DeleteError(t *testing.T) {
+	scheme := newTestScheme()
+
+	targetNs := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "cleanup-del-tgt"}}
+	ns := &syncv1.NamespaceSync{
+		ObjectMeta: metav1.ObjectMeta{Name: "cleanup-del-test", Namespace: "cleanup-del-src"},
+		Spec: syncv1.NamespaceSyncSpec{
+			SourceNamespace:  "cleanup-del-src",
+			TargetNamespaces: []string{"cleanup-del-tgt"},
+			SecretName:       []string{"s1"},
+			ConfigMapName:    []string{"cm1"},
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(targetNs, ns).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Delete: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+				return fmt.Errorf("delete failed")
+			},
+		}).
+		Build()
+
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	err := r.cleanupSyncedResources(context.Background(), ns)
+	if err == nil {
+		t.Error("expected error from cleanup with delete failures")
+	}
+}
+
+func TestCreateOrUpdateResource_GetError(t *testing.T) {
+	scheme := newTestScheme()
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, cl client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if _, ok := obj.(*corev1.Secret); ok {
+					return fmt.Errorf("api server error")
+				}
+				return cl.Get(ctx, key, obj, opts...)
+			},
+		}).
+		Build()
+
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-secret", Namespace: "test-ns"},
+	}
+	err := createOrUpdateResource(r, context.Background(), secret, &corev1.Secret{}, "secret",
+		func(src, dst *corev1.Secret) {})
+	if err == nil {
+		t.Error("expected error from Get failure")
+	}
+}
+
+func TestHandleDeletionAndStatus_WithRecorder(t *testing.T) {
+	scheme := newTestScheme()
+	now := metav1.Now()
+
+	targetNs := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "rec-tgt-ns"}}
+	syncedSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "rec-secret", Namespace: "rec-tgt-ns"},
+	}
+
+	ns := &syncv1.NamespaceSync{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "rec-del-sync",
+			Namespace:         "rec-src-ns",
+			DeletionTimestamp: &now,
+			Finalizers:        []string{finalizerName},
+		},
+		Spec: syncv1.NamespaceSyncSpec{
+			SourceNamespace:  "rec-src-ns",
+			TargetNamespaces: []string{"rec-tgt-ns"},
+			SecretName:       []string{"rec-secret"},
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(targetNs, syncedSecret, ns).
+		WithStatusSubresource(ns).
+		Build()
+
+	recorder := &fakeRecorder{events: []string{}}
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme, Recorder: recorder}
+
+	_, err := r.handleDeletionAndStatus(context.Background(), ns)
+	if err != nil {
+		t.Fatalf("handleDeletionAndStatus error: %v", err)
+	}
+
+	if len(recorder.events) == 0 {
+		t.Error("expected at least one event recorded")
+	}
+}
+
+// fakeRecorder implements record.EventRecorder for testing
+type fakeRecorder struct {
+	events []string
+}
+
+func (f *fakeRecorder) Event(object runtime.Object, eventtype, reason, message string) {
+	f.events = append(f.events, reason)
+}
+
+func (f *fakeRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
+	f.events = append(f.events, reason)
+}
+
+func (f *fakeRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
+	f.events = append(f.events, reason)
+}
