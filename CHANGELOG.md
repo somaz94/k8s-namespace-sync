@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased (2026-03-30)
+
+### Documentation
+
+- remove duplicate rules covered by global CLAUDE.md ([c0df548](https://github.com/somaz94/k8s-namespace-sync/commit/c0df548b3336b292b7b88b26246fa0b0fc74b462))
+
+### Continuous Integration
+
+- skip auto-generated changelog and contributors commits in release notes ([9acdd4b](https://github.com/somaz94/k8s-namespace-sync/commit/9acdd4b8be81aa10e939f565bb7ce958fee0b32c))
+
+### Chores
+
+- **deps:** bump azure/setup-helm from 4 to 5 ([788af22](https://github.com/somaz94/k8s-namespace-sync/commit/788af227a5931983d09ca123e0acd20d2cdcd587))
+- remove duplicate rules from CLAUDE.md (moved to global) ([d1777a0](https://github.com/somaz94/k8s-namespace-sync/commit/d1777a00587d0b20c2cf19a0416379bb29b1b0b7))
+- add git config protection to CLAUDE.md ([d5d6de4](https://github.com/somaz94/k8s-namespace-sync/commit/d5d6de4b6b18b39cf77a830de0d5c08272ebe238))
+
+### Contributors
+
+- somaz
+
+<br/>
+
 ## [v0.3.1](https://github.com/somaz94/k8s-namespace-sync/compare/v0.3.0...v0.3.1) (2026-03-25)
 
 ### Code Refactoring
