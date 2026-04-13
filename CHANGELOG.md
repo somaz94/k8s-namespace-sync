@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 
 ### Chores
 
+- **deps:** bump softprops/action-gh-release from 2 to 3 ([d02c266](https://github.com/somaz94/k8s-namespace-sync/commit/d02c266a4ff37289517968441d59b4d6a9f252b2))
 - **deps:** bump dependabot/fetch-metadata from 2 to 3 ([e821e0a](https://github.com/somaz94/k8s-namespace-sync/commit/e821e0a06079dab8e03877f69adc2805951d2466))
 - **deps:** bump azure/setup-helm from 4 to 5 ([788af22](https://github.com/somaz94/k8s-namespace-sync/commit/788af227a5931983d09ca123e0acd20d2cdcd587))
 - remove duplicate rules from CLAUDE.md (moved to global) ([d1777a0](https://github.com/somaz94/k8s-namespace-sync/commit/d1777a00587d0b20c2cf19a0416379bb29b1b0b7))
