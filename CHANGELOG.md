@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 
 ### Chores
 
+- **deps:** bump actions/github-script from 8 to 9 ([fd2ac7e](https://github.com/somaz94/k8s-namespace-sync/commit/fd2ac7e1def07aa22e34a04a376b99d6df257158))
 - **deps:** bump softprops/action-gh-release from 2 to 3 ([d02c266](https://github.com/somaz94/k8s-namespace-sync/commit/d02c266a4ff37289517968441d59b4d6a9f252b2))
 - **deps:** bump dependabot/fetch-metadata from 2 to 3 ([e821e0a](https://github.com/somaz94/k8s-namespace-sync/commit/e821e0a06079dab8e03877f69adc2805951d2466))
 - **deps:** bump azure/setup-helm from 4 to 5 ([788af22](https://github.com/somaz94/k8s-namespace-sync/commit/788af227a5931983d09ca123e0acd20d2cdcd587))
