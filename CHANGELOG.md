@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased (2026-03-30)
+## Unreleased (2026-04-13)
 
 ### Documentation
 
@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 
 ### Chores
 
+- **deps:** bump dependabot/fetch-metadata from 2 to 3 ([e821e0a](https://github.com/somaz94/k8s-namespace-sync/commit/e821e0a06079dab8e03877f69adc2805951d2466))
 - **deps:** bump azure/setup-helm from 4 to 5 ([788af22](https://github.com/somaz94/k8s-namespace-sync/commit/788af227a5931983d09ca123e0acd20d2cdcd587))
 - remove duplicate rules from CLAUDE.md (moved to global) ([d1777a0](https://github.com/somaz94/k8s-namespace-sync/commit/d1777a00587d0b20c2cf19a0416379bb29b1b0b7))
 - add git config protection to CLAUDE.md ([d5d6de4](https://github.com/somaz94/k8s-namespace-sync/commit/d5d6de4b6b18b39cf77a830de0d5c08272ebe238))
