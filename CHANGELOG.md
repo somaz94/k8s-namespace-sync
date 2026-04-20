@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 
 ### Chores
 
+- **deps:** bump docker/login-action from 3 to 4 ([c035249](https://github.com/somaz94/k8s-namespace-sync/commit/c0352498a274c2876db421977aa81d487dfd69b3))
 - **deps:** bump docker/setup-qemu-action from 3 to 4 ([7f91133](https://github.com/somaz94/k8s-namespace-sync/commit/7f911338ae52a1af5b0bf7c9c94fce56d36b6afb))
 - **deps:** bump the go-minor group with 3 updates (#46) ([#46](https://github.com/somaz94/k8s-namespace-sync/pull/46)) ([ed04744](https://github.com/somaz94/k8s-namespace-sync/commit/ed0474437ec7bfd0cf1d5333eb74044aa33b6dc6))
 - **deps:** bump actions/github-script from 8 to 9 ([fd2ac7e](https://github.com/somaz94/k8s-namespace-sync/commit/fd2ac7e1def07aa22e34a04a376b99d6df257158))
