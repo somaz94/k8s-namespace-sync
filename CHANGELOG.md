@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased (2026-04-13)
+## Unreleased (2026-04-20)
 
 ### Documentation
 
@@ -10,10 +10,13 @@ All notable changes to this project will be documented in this file.
 
 ### Continuous Integration
 
+- add docker build job and bump action versions in release workflow ([76d8563](https://github.com/somaz94/k8s-namespace-sync/commit/76d8563b4e33b9582d4d70531a9f8139b5821117))
 - skip auto-generated changelog and contributors commits in release notes ([9acdd4b](https://github.com/somaz94/k8s-namespace-sync/commit/9acdd4b8be81aa10e939f565bb7ce958fee0b32c))
 
 ### Chores
 
+- **deps:** bump docker/setup-qemu-action from 3 to 4 ([7f91133](https://github.com/somaz94/k8s-namespace-sync/commit/7f911338ae52a1af5b0bf7c9c94fce56d36b6afb))
+- **deps:** bump the go-minor group with 3 updates (#46) ([#46](https://github.com/somaz94/k8s-namespace-sync/pull/46)) ([ed04744](https://github.com/somaz94/k8s-namespace-sync/commit/ed0474437ec7bfd0cf1d5333eb74044aa33b6dc6))
 - **deps:** bump actions/github-script from 8 to 9 ([fd2ac7e](https://github.com/somaz94/k8s-namespace-sync/commit/fd2ac7e1def07aa22e34a04a376b99d6df257158))
 - **deps:** bump softprops/action-gh-release from 2 to 3 ([d02c266](https://github.com/somaz94/k8s-namespace-sync/commit/d02c266a4ff37289517968441d59b4d6a9f252b2))
 - **deps:** bump dependabot/fetch-metadata from 2 to 3 ([e821e0a](https://github.com/somaz94/k8s-namespace-sync/commit/e821e0a06079dab8e03877f69adc2805951d2466))
