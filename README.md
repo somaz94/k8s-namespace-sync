@@ -56,6 +56,17 @@ The controller:
 
 ### Option 1: Helm (Recommended)
 
+**Recommended: OCI registry (Helm 3.8+)**
+
+```bash
+# Single-command install — no helm repo add needed
+helm install k8s-namespace-sync oci://ghcr.io/somaz94/charts/k8s-namespace-sync \
+  --version 0.3.1 \
+  --namespace k8s-namespace-sync-system --create-namespace
+```
+
+**Alternative: classic Helm repo**
+
 ```bash
 # Add the Helm repository
 helm repo add k8s-namespace-sync https://somaz94.github.io/k8s-namespace-sync/helm-repo
