@@ -2,7 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased (2026-04-20)
+## [v0.3.2](https://github.com/somaz94/k8s-namespace-sync/compare/v0.3.1...v0.3.2) (2026-06-04)
+
+### Features
+
+- **ci:** publish Helm chart to GHCR (OCI) alongside gh-pages ([b33fdf7](https://github.com/somaz94/k8s-namespace-sync/commit/b33fdf7c2ed54e42f27c3b15058086205c31f13a))
+
+### Bug Fixes
+
+- **ci:** use staged tarball for OCI push (gh-pages branch checkout invalidates ./helm/ path) ([0044bf3](https://github.com/somaz94/k8s-namespace-sync/commit/0044bf3b5f9babbc277828b1eb53a2e5b03986ef))
+
+### Code Refactoring
+
+- tidy CRD markers and clean up logging and comments ([8ec8ee3](https://github.com/somaz94/k8s-namespace-sync/commit/8ec8ee320e3f4b8e4f97b54f3c9911edb0aae972))
 
 ### Documentation
 
@@ -10,11 +22,19 @@ All notable changes to this project will be documented in this file.
 
 ### Continuous Integration
 
+- add concurrency guards to recurring workflows ([c93dd4c](https://github.com/somaz94/k8s-namespace-sync/commit/c93dd4c0f1ff7e874ddf233330fb3195513b93ae))
+- use kind-e2e-test-action@v1 (replace inline e2e script) ([1e8dcdf](https://github.com/somaz94/k8s-namespace-sync/commit/1e8dcdf1466ea80ca518425a4c1f1628466aa0d3))
+- use go-kubebuilder-test-action@v1 (replace inline test script) ([d92a3a2](https://github.com/somaz94/k8s-namespace-sync/commit/d92a3a2bbe99e0e8fb797bf2b2c750581b22ac61))
+- use helm-chart-release-action@v1 (replace inline release script) ([c63d9ea](https://github.com/somaz94/k8s-namespace-sync/commit/c63d9ea4531f116af4bc6c5f579a6728d3318bc5))
 - add docker build job and bump action versions in release workflow ([76d8563](https://github.com/somaz94/k8s-namespace-sync/commit/76d8563b4e33b9582d4d70531a9f8139b5821117))
 - skip auto-generated changelog and contributors commits in release notes ([9acdd4b](https://github.com/somaz94/k8s-namespace-sync/commit/9acdd4b8be81aa10e939f565bb7ce958fee0b32c))
 
 ### Chores
 
+- sanitize example fixture secrets and devcontainer subnet ([0e8b09d](https://github.com/somaz94/k8s-namespace-sync/commit/0e8b09ddaf358bbc0bcca66361ffc6fab2e291b1))
+- **deps:** bump the go-minor group with 6 updates (#51) ([#51](https://github.com/somaz94/k8s-namespace-sync/pull/51)) ([e725a5c](https://github.com/somaz94/k8s-namespace-sync/commit/e725a5cc4c28715a4b10e80d73b4f3adcdb20ab7))
+- **deps:** bump the go-minor group with 4 updates (#50) ([#50](https://github.com/somaz94/k8s-namespace-sync/pull/50)) ([9260886](https://github.com/somaz94/k8s-namespace-sync/commit/9260886aeaed7c9e08e9cb5de730e6c2c5456318))
+- **deps:** bump the go-minor group with 3 updates (#49) ([#49](https://github.com/somaz94/k8s-namespace-sync/pull/49)) ([5722353](https://github.com/somaz94/k8s-namespace-sync/commit/5722353dca48760a2b032d59f8a68113f957ecb0))
 - **deps:** bump docker/login-action from 3 to 4 ([c035249](https://github.com/somaz94/k8s-namespace-sync/commit/c0352498a274c2876db421977aa81d487dfd69b3))
 - **deps:** bump docker/setup-qemu-action from 3 to 4 ([7f91133](https://github.com/somaz94/k8s-namespace-sync/commit/7f911338ae52a1af5b0bf7c9c94fce56d36b6afb))
 - **deps:** bump the go-minor group with 3 updates (#46) ([#46](https://github.com/somaz94/k8s-namespace-sync/pull/46)) ([ed04744](https://github.com/somaz94/k8s-namespace-sync/commit/ed0474437ec7bfd0cf1d5333eb74044aa33b6dc6))
