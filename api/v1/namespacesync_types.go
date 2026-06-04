@@ -33,17 +33,24 @@ type NamespaceSyncSpec struct {
 // NamespaceSyncStatus defines the observed state of NamespaceSync
 type NamespaceSyncStatus struct {
 	// LastSyncTime is the last time the sync was performed
+	// +optional
 	LastSyncTime metav1.Time `json:"lastSyncTime,omitempty"`
 
 	// SyncedNamespaces is a list of namespaces that were successfully synced
+	// +optional
 	SyncedNamespaces []string `json:"syncedNamespaces,omitempty"`
 
 	// FailedNamespaces maps namespace names to error messages for failed syncs
+	// +optional
 	FailedNamespaces map[string]string `json:"failedNamespaces,omitempty"`
 
 	// Conditions represent the latest available observations of an object's state
 	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 
 	// ObservedGeneration represents the .metadata.generation that the condition was set based upon
 	// +optional

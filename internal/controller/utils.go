@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -101,11 +102,11 @@ func (r *NamespaceSyncReconciler) updateStatus(ctx context.Context, namespaceSyn
 // validateNamespaceSync validates the NamespaceSync resource
 func validateNamespaceSync(namespaceSync *syncv1.NamespaceSync) error {
 	if namespaceSync.Spec.SourceNamespace == "" {
-		return fmt.Errorf("sourceNamespace is required")
+		return errors.New("sourceNamespace is required")
 	}
 
 	if len(namespaceSync.Spec.SecretName) == 0 && len(namespaceSync.Spec.ConfigMapName) == 0 {
-		return fmt.Errorf("at least one secret or configmap must be specified")
+		return errors.New("at least one secret or configmap must be specified")
 	}
 
 	return nil

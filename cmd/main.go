@@ -78,7 +78,7 @@ func main() {
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 
-	// 로깅 설정 수정
+	// Logging configuration
 	opts := zap.Options{
 		Development:     true,
 		Level:           zapcore.DebugLevel,
@@ -99,11 +99,11 @@ func main() {
 		}),
 	}
 
-	// 플래그 파싱 전에 opts.BindFlags 호출
+	// Call opts.BindFlags before parsing flags
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
-	// 로그 레벨은 파싱된 플래그에서 가져옴
+	// Log level comes from the parsed flags
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
@@ -165,7 +165,10 @@ func main() {
 
 	// Configure reconcile interval from environment variable
 	if interval := os.Getenv("RECONCILE_INTERVAL"); interval != "" {
-		if d, err := time.ParseDuration(interval); err == nil {
+		if d, err := time.ParseDuration(interval); err != nil {
+			setupLog.Error(err, "invalid RECONCILE_INTERVAL, using default",
+				"value", interval, "default", controller.ReconcileInterval)
+		} else {
 			controller.ReconcileInterval = d
 			setupLog.Info("Custom reconcile interval set", "interval", d)
 		}
