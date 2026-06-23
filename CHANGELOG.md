@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased (2026-06-23)
+
+### Documentation
+
+- document DCO sign-off requirement in CONTRIBUTING ([760bb19](https://github.com/somaz94/k8s-namespace-sync/commit/760bb19268dae5dd772a7d48c3dcaa71b945fd0d))
+
+### Continuous Integration
+
+- add DCO check via shared reusable workflow ([cb0c3e2](https://github.com/somaz94/k8s-namespace-sync/commit/cb0c3e219f9e8a29fd18963da3eb6f9bb00cccce))
+
+### Chores
+
+- **deps:** bump actions/checkout from 6 to 7 (#53) ([#53](https://github.com/somaz94/k8s-namespace-sync/pull/53)) ([5072255](https://github.com/somaz94/k8s-namespace-sync/commit/5072255758daf153e7436b2a6ef2157ca01a3b46))
+- **deps:** bump the go-minor group with 5 updates (#52) ([#52](https://github.com/somaz94/k8s-namespace-sync/pull/52)) ([6733db3](https://github.com/somaz94/k8s-namespace-sync/commit/6733db34189b6bbf694b7d38b8dc7f2a9a22bab0))
+- remove stale backup controller file ([873bd4d](https://github.com/somaz94/k8s-namespace-sync/commit/873bd4d21aab6117f365095c5bd0106c8a5aad29))
+
+### Contributors
+
+- somaz
+
+<br/>
+
 ## [v0.3.2](https://github.com/somaz94/k8s-namespace-sync/compare/v0.3.1...v0.3.2) (2026-06-04)
 
 ### Features
