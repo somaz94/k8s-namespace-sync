@@ -1,5 +1,7 @@
 # K8s Namespace Sync
 
+> Kubernetes operator that automatically syncs Secrets & ConfigMaps across namespaces — glob filtering, auto-detection, and Prometheus metrics.
+
 ![Top Language](https://img.shields.io/github/languages/top/somaz94/k8s-namespace-sync?color=green&logo=go&logoColor=b)
 ![k8s-namespace-sync](https://img.shields.io/github/v/tag/somaz94/k8s-namespace-sync?label=k8s-namespace-sync&logo=kubernetes&logoColor=white)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
