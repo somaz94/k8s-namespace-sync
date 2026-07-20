@@ -2,18 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased (2026-06-23)
+## Unreleased (2026-07-20)
+
+### Bug Fixes
+
+- warn when bump-version.sh finds no version to replace ([e0eef6c](https://github.com/somaz94/k8s-namespace-sync/commit/e0eef6c676f223e3e353739f10e1651c1241cf7e))
 
 ### Documentation
 
+- remove DCO sign-off instructions ([d66971a](https://github.com/somaz94/k8s-namespace-sync/commit/d66971a7fd623f4f56e2be215aebd72651d05f62))
+- add keyword-rich tagline under title for discovery ([6868af2](https://github.com/somaz94/k8s-namespace-sync/commit/6868af20f1e5750d4cc5ab5dc159104d3c4300a3))
 - document DCO sign-off requirement in CONTRIBUTING ([760bb19](https://github.com/somaz94/k8s-namespace-sync/commit/760bb19268dae5dd772a7d48c3dcaa71b945fd0d))
 
 ### Continuous Integration
 
+- remove DCO workflow ([4fc54e3](https://github.com/somaz94/k8s-namespace-sync/commit/4fc54e32ebd56c587427f8c99fba173b666e0143))
+- adopt semantic-pr, labels, lock-threads, PR size, and auto-assign reusables ([de043bc](https://github.com/somaz94/k8s-namespace-sync/commit/de043bcdd750036220dcefc44359eff182391df5))
+- use reusable stale-issues workflow ([9e24601](https://github.com/somaz94/k8s-namespace-sync/commit/9e246017d78ece2ed671dfb0a26c0683a68337ec))
+- use reusable issue-greeting workflow ([2db7c05](https://github.com/somaz94/k8s-namespace-sync/commit/2db7c0536b0bff0891f288ff097110dfcc36fab2))
+- use reusable dependabot-auto-merge workflow ([e8dda53](https://github.com/somaz94/k8s-namespace-sync/commit/e8dda534aa7b24879fab4238bb74046c14551fe1))
+- use reusable contributors workflow ([acae81d](https://github.com/somaz94/k8s-namespace-sync/commit/acae81db14531e0bdf3cc7507cbd65a56c10e7f2))
+- gate e2e on fork PRs via ok-to-test label ([cb0416d](https://github.com/somaz94/k8s-namespace-sync/commit/cb0416d237ddcbcb14fd5a93f4dd6e69c958a611))
+- add ok-to-test workflow stub ([b831bdb](https://github.com/somaz94/k8s-namespace-sync/commit/b831bdbbb43fabc692e2e9538c1509d4ce9294b3))
+- add PR welcome workflow stub ([7e5b247](https://github.com/somaz94/k8s-namespace-sync/commit/7e5b247cae541ead3f07e0e3d8978dbfce9eebab))
 - add DCO check via shared reusable workflow ([cb0c3e2](https://github.com/somaz94/k8s-namespace-sync/commit/cb0c3e219f9e8a29fd18963da3eb6f9bb00cccce))
 
 ### Chores
 
+- **deps:** bump actions/setup-go from 6 to 7 (#55) ([#55](https://github.com/somaz94/k8s-namespace-sync/pull/55)) ([ddd185c](https://github.com/somaz94/k8s-namespace-sync/commit/ddd185c21b28e266762fdc7a63ad8a7d766bb354))
+- **deps:** bump the go-minor group with 2 updates (#54) ([#54](https://github.com/somaz94/k8s-namespace-sync/pull/54)) ([3221048](https://github.com/somaz94/k8s-namespace-sync/commit/32210488680cf1a06a7b256d007e51eb4430dc02))
 - **deps:** bump actions/checkout from 6 to 7 (#53) ([#53](https://github.com/somaz94/k8s-namespace-sync/pull/53)) ([5072255](https://github.com/somaz94/k8s-namespace-sync/commit/5072255758daf153e7436b2a6ef2157ca01a3b46))
 - **deps:** bump the go-minor group with 5 updates (#52) ([#52](https://github.com/somaz94/k8s-namespace-sync/pull/52)) ([6733db3](https://github.com/somaz94/k8s-namespace-sync/commit/6733db34189b6bbf694b7d38b8dc7f2a9a22bab0))
 - remove stale backup controller file ([873bd4d](https://github.com/somaz94/k8s-namespace-sync/commit/873bd4d21aab6117f365095c5bd0106c8a5aad29))
