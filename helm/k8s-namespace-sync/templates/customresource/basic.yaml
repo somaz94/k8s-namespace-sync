@@ -1,4 +1,8 @@
 {{- if .Values.customresource.basic.enabled }}
+{{- $cr := .Values.customresource.basic }}
+{{- if and (empty $cr.configMapName) (empty $cr.secretName) }}
+{{- fail "customresource.basic: set at least one of configMapName or secretName — a NamespaceSync with neither has nothing to sync and is rejected by the CRD schema" }}
+{{- end }}
 apiVersion: sync.nsync.dev/v1
 kind: NamespaceSync
 metadata:
@@ -7,6 +11,10 @@ metadata:
     - namespacesync.nsync.dev/finalizer
 spec:
   sourceNamespace: {{ .Values.customresource.basic.sourceNamespace | default "default" }}
-  configMapName: {{- toYaml .Values.customresource.basic.configMapName | nindent 4 }}
-  secretName: {{- toYaml .Values.customresource.basic.secretName | nindent 4 }}
+  {{- if $cr.configMapName }}
+  configMapName: {{- toYaml $cr.configMapName | nindent 4 }}
+  {{- end }}
+  {{- if $cr.secretName }}
+  secretName: {{- toYaml $cr.secretName | nindent 4 }}
+  {{- end }}
 {{- end }}
