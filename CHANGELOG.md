@@ -2,10 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased (2026-07-20)
+## [v0.4.0](https://github.com/somaz94/k8s-namespace-sync/compare/v0.3.2...v0.4.0) (2026-07-29)
+
+### Features
+
+- **crd:** promote the NamespaceSync spec checks from reconcile time to admission ([1f88a8b](https://github.com/somaz94/k8s-namespace-sync/commit/1f88a8be4537f04a36d7c51d7666353604e310e9))
 
 ### Bug Fixes
 
+- **chart:** require at least one Secret or ConfigMap before rendering a NamespaceSync ([8deca06](https://github.com/somaz94/k8s-namespace-sync/commit/8deca06fdd7c0f87f9942ad2af8296871b7de8f6))
+- **hack:** update the OCI chart version in docs during a version bump ([2f3b180](https://github.com/somaz94/k8s-namespace-sync/commit/2f3b180804800875acce462e460eb88792639573))
 - warn when bump-version.sh finds no version to replace ([e0eef6c](https://github.com/somaz94/k8s-namespace-sync/commit/e0eef6c676f223e3e353739f10e1651c1241cf7e))
 
 ### Documentation
@@ -29,6 +35,9 @@ All notable changes to this project will be documented in this file.
 
 ### Chores
 
+- **release:** bump version to v0.4.0 ([8e7a4fc](https://github.com/somaz94/k8s-namespace-sync/commit/8e7a4fc17e18aade7b4b926cdcb611fb641862d0))
+- **lint:** use the golangci-lint v2 module path and config schema ([8d28e77](https://github.com/somaz94/k8s-namespace-sync/commit/8d28e7732bef8b2c4637421853f2d43c2153ca49))
+- **deps:** bump the go-minor group with 4 updates (#56) ([#56](https://github.com/somaz94/k8s-namespace-sync/pull/56)) ([c17b700](https://github.com/somaz94/k8s-namespace-sync/commit/c17b700fe6eec1edc540b75a686c3180df38253c))
 - **deps:** bump actions/setup-go from 6 to 7 (#55) ([#55](https://github.com/somaz94/k8s-namespace-sync/pull/55)) ([ddd185c](https://github.com/somaz94/k8s-namespace-sync/commit/ddd185c21b28e266762fdc7a63ad8a7d766bb354))
 - **deps:** bump the go-minor group with 2 updates (#54) ([#54](https://github.com/somaz94/k8s-namespace-sync/pull/54)) ([3221048](https://github.com/somaz94/k8s-namespace-sync/commit/32210488680cf1a06a7b256d007e51eb4430dc02))
 - **deps:** bump actions/checkout from 6 to 7 (#53) ([#53](https://github.com/somaz94/k8s-namespace-sync/pull/53)) ([5072255](https://github.com/somaz94/k8s-namespace-sync/commit/5072255758daf153e7436b2a6ef2157ca01a3b46))
