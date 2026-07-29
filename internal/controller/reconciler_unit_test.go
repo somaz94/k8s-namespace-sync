@@ -35,7 +35,7 @@ func TestReconcile_NotFound(t *testing.T) {
 	if err != nil {
 		t.Errorf("expected no error for not found, got %v", err)
 	}
-	if result.Requeue {
+	if result.RequeueAfter != 0 {
 		t.Error("expected no requeue")
 	}
 }
