@@ -51,7 +51,7 @@ The controller:
 <br/>
 
 ### Prerequisites
-- Kubernetes v1.16+
+- Kubernetes v1.25+ (the CRD ships CEL validation rules, which require `x-kubernetes-validations`)
 - kubectl v1.11.3+
 
 <br/>
@@ -433,6 +433,21 @@ kubectl get namespacesync namespacesync-sample -o yaml
 kubectl get secret test-secret -n target-namespace
 kubectl get configmap test-configmap -n target-namespace
 ```
+
+<br/>
+
+## Validation Rules
+
+The CRD enforces the following rules at admission time. They are part of the CRD schema (field constraints and CEL `x-kubernetes-validations`), so an invalid resource is rejected by `kubectl apply` rather than being accepted and then failing on every reconcile.
+
+| Rule | Message |
+|---|---|
+| `spec.sourceNamespace` must be a non-empty DNS-1123 label (1–63 chars) | `spec.sourceNamespace in body should match ...` |
+| At least one of `spec.secretName` or `spec.configMapName` must be non-empty | `at least one secret or configmap must be specified` |
+
+The controller keeps the same checks as a reconcile-time backstop, so a resource created before these rules existed still reports the error in its status instead of syncing nothing silently.
+
+Note that listing the source namespace in `spec.targetNamespaces`, or a namespace in both `spec.targetNamespaces` and `spec.exclude`, is **not** an error — the source namespace is always skipped and `exclude` is evaluated first.
 
 <br/>
 

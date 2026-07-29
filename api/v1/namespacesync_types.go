@@ -5,8 +5,13 @@ import (
 )
 
 // NamespaceSyncSpec defines the desired state of NamespaceSync
+// +kubebuilder:validation:XValidation:rule="(has(self.secretName) && self.secretName.size() > 0) || (has(self.configMapName) && self.configMapName.size() > 0)",message="at least one secret or configmap must be specified"
 type NamespaceSyncSpec struct {
-	// SourceNamespace is the namespace to sync from
+	// SourceNamespace is the namespace to sync from.
+	// Must be a DNS-1123 label, matching the Kubernetes namespace naming rules.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	SourceNamespace string `json:"sourceNamespace"`
 
 	// TargetNamespaces is the list of namespaces to sync to

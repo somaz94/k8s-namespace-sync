@@ -103,7 +103,12 @@ spec:
                   type: string
                 type: array
               sourceNamespace:
-                description: SourceNamespace is the namespace to sync from
+                description: |-
+                  SourceNamespace is the namespace to sync from.
+                  Must be a DNS-1123 label, matching the Kubernetes namespace naming rules.
+                maxLength: 63
+                minLength: 1
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                 type: string
               targetNamespaces:
                 description: TargetNamespaces is the list of namespaces to sync to
@@ -111,6 +116,10 @@ spec:
                   type: string
                 type: array
             type: object
+            x-kubernetes-validations:
+            - message: at least one secret or configmap must be specified
+              rule: (has(self.secretName) && self.secretName.size() > 0) || (has(self.configMapName)
+                && self.configMapName.size() > 0)
           status:
             description: NamespaceSyncStatus defines the observed state of NamespaceSync
             properties:

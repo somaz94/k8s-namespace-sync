@@ -345,25 +345,16 @@ var _ = Describe("NamespaceSync Validation", func() {
 					SecretName:      []string{"some-secret"},
 				},
 			}
-			Expect(k8sClient.Create(ctx, invalidSync)).To(Succeed())
 
-			By("Verifying status reflects validation error")
-			Eventually(func() bool {
-				var ns syncv1.NamespaceSync
-				if err := k8sClient.Get(ctx, client.ObjectKey{
-					Namespace: "validation-ns",
-					Name:      "invalid-empty-source",
-				}, &ns); err != nil {
-					return false
-				}
-				if ns.Status.FailedNamespaces == nil {
-					return false
-				}
-				_, hasValidation := ns.Status.FailedNamespaces["validation"]
-				return hasValidation
-			}, time.Second*10, time.Second).Should(BeTrue(), "Should have validation error in status")
+			By("Verifying the CRD schema rejects it at admission")
+			// The resource never reaches the reconciler: spec.sourceNamespace
+			// carries MinLength/Pattern constraints, so the apiserver rejects the
+			// create. The reconcile-time backstop in validateNamespaceSync is
+			// covered directly by TestValidateNamespaceSync in unit_test.go.
+			err := k8sClient.Create(ctx, invalidSync)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("spec.sourceNamespace"))
 
-			Expect(k8sClient.Delete(ctx, invalidSync)).To(Succeed())
 			Expect(k8sClient.Delete(ctx, ns)).To(Succeed())
 		})
 
@@ -386,25 +377,14 @@ var _ = Describe("NamespaceSync Validation", func() {
 					SourceNamespace: "validation-ns2",
 				},
 			}
-			Expect(k8sClient.Create(ctx, invalidSync)).To(Succeed())
 
-			By("Verifying status reflects validation error")
-			Eventually(func() bool {
-				var ns syncv1.NamespaceSync
-				if err := k8sClient.Get(ctx, client.ObjectKey{
-					Namespace: "validation-ns2",
-					Name:      "invalid-no-resources",
-				}, &ns); err != nil {
-					return false
-				}
-				if ns.Status.FailedNamespaces == nil {
-					return false
-				}
-				_, hasValidation := ns.Status.FailedNamespaces["validation"]
-				return hasValidation
-			}, time.Second*10, time.Second).Should(BeTrue(), "Should have validation error in status")
+			By("Verifying the CRD schema rejects it at admission")
+			// A spec naming neither a Secret nor a ConfigMap has nothing to sync;
+			// the spec-level CEL rule rejects it before it reaches the reconciler.
+			err := k8sClient.Create(ctx, invalidSync)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("at least one secret or configmap must be specified"))
 
-			Expect(k8sClient.Delete(ctx, invalidSync)).To(Succeed())
 			Expect(k8sClient.Delete(ctx, ns)).To(Succeed())
 		})
 	})

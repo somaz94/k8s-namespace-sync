@@ -4,7 +4,7 @@
 This Helm chart installs K8s Namespace Sync Controller on your Kubernetes cluster. The controller automatically synchronizes ConfigMaps and Secrets across multiple namespaces.
 
 ## Prerequisites
-- Kubernetes 1.16+
+- Kubernetes 1.25+ (the CRD ships CEL validation rules)
 - Helm 3.0+
 
 ## Installing the Chart
