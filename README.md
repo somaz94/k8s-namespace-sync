@@ -63,7 +63,7 @@ The controller:
 ```bash
 # Single-command install — no helm repo add needed
 helm install k8s-namespace-sync oci://ghcr.io/somaz94/charts/k8s-namespace-sync \
-  --version 0.3.1 \
+  --version 0.4.0 \
   --namespace k8s-namespace-sync-system --create-namespace
 ```
 
@@ -79,7 +79,7 @@ helm install k8s-namespace-sync k8s-namespace-sync/k8s-namespace-sync
 
 # Or install with custom values
 helm install k8s-namespace-sync k8s-namespace-sync/k8s-namespace-sync \
-  --set image.tag=v0.3.1 \
+  --set image.tag=v0.4.0 \
   --namespace k8s-namespace-sync-system --create-namespace
 ```
 
@@ -106,7 +106,7 @@ cd k8s-namespace-sync
 make install
 
 # Deploy the controller
-make deploy IMG=somaz940/k8s-namespace-sync:v0.3.1
+make deploy IMG=somaz940/k8s-namespace-sync:v0.4.0
 ```
 
 <br/>
