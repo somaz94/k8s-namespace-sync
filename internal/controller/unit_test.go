@@ -310,7 +310,7 @@ func TestCopyLabelsAndAnnotations(t *testing.T) {
 		src := &metav1.ObjectMeta{
 			Name:      "source",
 			Namespace: "ns",
-			Labels:    map[string]string{"new-label": "new-value"},
+			Labels:    map[string]string{"new-label": updatedValue},
 		}
 		dst := &metav1.ObjectMeta{
 			Labels:      map[string]string{"existing": "keep"},
@@ -322,7 +322,7 @@ func TestCopyLabelsAndAnnotations(t *testing.T) {
 		if dst.Labels["existing"] != "keep" {
 			t.Error("existing label should be preserved")
 		}
-		if dst.Labels["new-label"] != "new-value" {
+		if dst.Labels["new-label"] != updatedValue {
 			t.Error("new label should be added")
 		}
 	})

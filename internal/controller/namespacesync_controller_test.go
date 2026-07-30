@@ -263,7 +263,7 @@ var _ = Describe("NamespaceSync Controller Resource Deletion", func() {
 					Name:      "test-configmap-deletion",
 					Namespace: "source-ns-deletion",
 				},
-				Data: map[string]string{"key": "new-value"},
+				Data: map[string]string{"key": updatedValue},
 			}
 			Expect(k8sClient.Create(ctx, sourceConfigMap)).To(Succeed())
 
@@ -276,7 +276,7 @@ var _ = Describe("NamespaceSync Controller Resource Deletion", func() {
 				}, &targetConfigMap); err != nil {
 					return err
 				}
-				Expect(targetConfigMap.Data["key"]).To(Equal("new-value"))
+				Expect(targetConfigMap.Data["key"]).To(Equal(updatedValue))
 				return nil
 			}, time.Second*10, time.Second).Should(Succeed())
 
@@ -298,7 +298,7 @@ var _ = Describe("NamespaceSync Controller Resource Deletion", func() {
 				}, &resyncdConfigMap); err != nil {
 					return err
 				}
-				Expect(resyncdConfigMap.Data["key"]).To(Equal("new-value"))
+				Expect(resyncdConfigMap.Data["key"]).To(Equal(updatedValue))
 				return nil
 			}, time.Second*10, time.Second).Should(Succeed())
 
@@ -819,7 +819,7 @@ var _ = Describe("NamespaceSync Status Updates", func() {
 
 				hasReady := false
 				for _, c := range sync.Status.Conditions {
-					if c.Type == "Ready" && c.Status == metav1.ConditionTrue {
+					if c.Type == conditionTypeReady && c.Status == metav1.ConditionTrue {
 						hasReady = true
 						break
 					}

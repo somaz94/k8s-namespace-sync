@@ -17,6 +17,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
 
+// Shared test fixtures for the controller package tests.
+const (
+	// conditionTypeReady is the metav1.Condition Type that updateStatus sets on
+	// the NamespaceSync status.
+	conditionTypeReady = "Ready"
+	// updatedValue is the post-update payload written to a source ConfigMap /
+	// Secret / label, then asserted on the synced target copy.
+	updatedValue = "new-value"
+)
+
 func newTestScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
 	_ = clientgoscheme.AddToScheme(scheme)
@@ -386,7 +396,7 @@ func TestReconcile_UpdateExistingResources(t *testing.T) {
 	sourceSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: "upd-secret", Namespace: "upd-src-ns"},
 		Type:       corev1.SecretTypeOpaque,
-		Data:       map[string][]byte{"key": []byte("new-value")},
+		Data:       map[string][]byte{"key": []byte(updatedValue)},
 	}
 	// Pre-existing secret in target with old data
 	existingSecret := &corev1.Secret{
@@ -397,7 +407,7 @@ func TestReconcile_UpdateExistingResources(t *testing.T) {
 
 	sourceCm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: "upd-cm", Namespace: "upd-src-ns"},
-		Data:       map[string]string{"key": "new-value"},
+		Data:       map[string]string{"key": updatedValue},
 		BinaryData: map[string][]byte{"bin": {0x01, 0x02}},
 	}
 	existingCm := &corev1.ConfigMap{
@@ -439,7 +449,7 @@ func TestReconcile_UpdateExistingResources(t *testing.T) {
 	if err := client.Get(context.Background(), types.NamespacedName{Name: "upd-secret", Namespace: "upd-tgt-ns"}, &s); err != nil {
 		t.Fatalf("failed to get updated secret: %v", err)
 	}
-	if string(s.Data["key"]) != "new-value" {
+	if string(s.Data["key"]) != updatedValue {
 		t.Errorf("expected secret data 'new-value', got %q", string(s.Data["key"]))
 	}
 
@@ -448,7 +458,7 @@ func TestReconcile_UpdateExistingResources(t *testing.T) {
 	if err := client.Get(context.Background(), types.NamespacedName{Name: "upd-cm", Namespace: "upd-tgt-ns"}, &cm); err != nil {
 		t.Fatalf("failed to get updated configmap: %v", err)
 	}
-	if cm.Data["key"] != "new-value" {
+	if cm.Data["key"] != updatedValue {
 		t.Errorf("expected configmap data 'new-value', got %q", cm.Data["key"])
 	}
 	if string(cm.BinaryData["bin"]) != string([]byte{0x01, 0x02}) {
@@ -783,7 +793,7 @@ func TestUpdateStatus_AllSynced(t *testing.T) {
 	}
 
 	cond := updated.Status.Conditions[0]
-	if cond.Type != "Ready" {
+	if cond.Type != conditionTypeReady {
 		t.Errorf("expected condition type 'Ready', got %q", cond.Type)
 	}
 	if cond.Status != metav1.ConditionTrue {
@@ -837,7 +847,7 @@ func TestUpdateStatus_PartialSync(t *testing.T) {
 	}
 
 	cond := updated.Status.Conditions[0]
-	if cond.Type != "Ready" {
+	if cond.Type != conditionTypeReady {
 		t.Errorf("expected condition type 'Ready', got %q", cond.Type)
 	}
 	if cond.Status != metav1.ConditionTrue {
@@ -891,7 +901,7 @@ func TestUpdateStatus_AllFailed(t *testing.T) {
 	}
 
 	cond := updated.Status.Conditions[0]
-	if cond.Type != "Ready" {
+	if cond.Type != conditionTypeReady {
 		t.Errorf("expected condition type 'Ready', got %q", cond.Type)
 	}
 	if cond.Status != metav1.ConditionFalse {
@@ -944,7 +954,7 @@ func TestUpdateStatus_NoNamespaces(t *testing.T) {
 	}
 
 	cond := updated.Status.Conditions[0]
-	if cond.Type != "Ready" {
+	if cond.Type != conditionTypeReady {
 		t.Errorf("expected condition type 'Ready', got %q", cond.Type)
 	}
 	if cond.Status != metav1.ConditionTrue {
