@@ -13,7 +13,6 @@ image:
 imagePullSecrets: []
 
 serviceAccount:
-  # Specifies whether a service account should be created
   create: true
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
@@ -40,7 +39,6 @@ resources:
     cpu: 10m
     memory: 64Mi
 
-# Controller configuration
 controller:
   metrics:
     bindAddress: ":8443"
@@ -64,7 +62,6 @@ service:
   type: ClusterIP
   port: 8443
 
-# Probe configuration
 probes:
   liveness:
     initialDelaySeconds: 15
@@ -80,12 +77,12 @@ probes:
 rbac:
   create: true
 
-# CRD installation
+# crds/ always installs (opt out with --skip-crds); create+remove only gate the
+# pre-delete Job that deletes the CRD, and with it every NamespaceSync.
 crds:
   create: true
   remove: true
 
-# Metrics configuration
 metrics:
   enabled: true
   service:
@@ -96,7 +93,7 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 
-# Custom Resource configurations
+# Optional NamespaceSync CRs; ready-made examples in values/{basic,exclude,filter,target}-values.yaml.
 customresource:
   basic:
     enabled: false
@@ -119,12 +116,13 @@ customresource:
     sourceNamespace: "default"
     configMapName: []  # Example: ["test-configmap", "test-configmap2"]
     secretName: []     # Example: ["test-secret", "test-secret2"]
+    # Globs only narrow configMapName/secretName above; they never discover other resources.
     configMaps:
-      include: []      # Example: ["test-configmap*"]  # All ConfigMaps starting with test-configmap
-      exclude: []      # Example: ["*2"]               # Exclude ConfigMaps ending with 2
+      include: []      # Example: ["test-configmap*"]
+      exclude: []      # Example: ["*2"]
     secrets:
-      include: []      # Example: ["test-secret*"]     # All Secrets starting with test-secret
-      exclude: []      # Example: ["*2"]               # Exclude Secrets ending with 2
+      include: []      # Example: ["test-secret*"]
+      exclude: []      # Example: ["*2"]
     exclude: []        # Example: ["test-ns2", "test-ns3"]
 
   target:
@@ -134,68 +132,3 @@ customresource:
     namespaces: []     # Example: ["test-ns1", "test-ns2"]
     configMapName: []  # Example: ["test-configmap", "test-configmap2"]
     secretName: []     # Example: ["test-secret", "test-secret2"]
-
-# Example values file for basic sync:
-#
-# customresource:
-#   basic:
-#     enabled: true
-#     sourceNamespace: "default"
-#     configMapName:
-#       - test-configmap
-#     secretName:
-#       - test-secret
-#
-# Example values file for exclude sync:
-#
-# cr:
-#   exclude:
-#     enabled: true
-#     sourceNamespace: "default"
-#     configMapName:
-#       - test-configmap
-#       - test-configmap2
-#     secretName:
-#       - test-secret
-#       - test-secret2
-#     namespaces:
-#       - test-ns2
-#       - test-ns3
-#
-# Example values file for filter sync:
-#
-# customresource:
-#   filter:
-#     enabled: true
-#     sourceNamespace: "default"
-#     configMapName:
-#       - test-configmap
-#       - test-configmap2
-#     secretName:
-#       - test-secret
-#       - test-secret2
-#     configMaps:
-#       exclude:
-#         - "*2"
-#     secrets:
-#       exclude:
-#         - "*2"
-#     exclude:
-#       - test-ns2
-#       - test-ns3
-#
-# Example values file for target sync:
-#
-# customresource:
-#   target:
-#     enabled: true
-#     sourceNamespace: "default"
-#     namespaces:
-#       - test-ns1
-#       - test-ns2
-#     configMapName:
-#       - test-configmap
-#       - test-configmap2
-#     secretName:
-#       - test-secret
-#       - test-secret2

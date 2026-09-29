@@ -5,10 +5,8 @@ type: application
 version: 0.4.0
 appVersion: "v0.4.0"
 
-# Dependencies and requirements
 kubeVersion: ">=1.25.0-0"
 
-# Keywords and categories for documentation
 keywords:
   - kubernetes
   - namespace
@@ -16,21 +14,17 @@ keywords:
   - configmap
   - secret
 
-# Home page, sources, and documentation
 home: https://github.com/somaz94/k8s-namespace-sync
 sources:
   - https://github.com/somaz94/k8s-namespace-sync
 
-# Maintainer information
 maintainers:
   - name: somaz94
     url: https://github.com/somaz94
 
-# Annotations for CRD handling
+# Inert: Helm reads hook annotations only from templates, never from Chart.yaml.
 annotations:
-  # This indicates that CRDs are required and should be created first
   "helm.sh/hook": pre-install,pre-upgrade
   "helm.sh/hook-weight": "-5"
 
-# Icon for the chart (optional)
 icon: https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/docs/images/logo.png

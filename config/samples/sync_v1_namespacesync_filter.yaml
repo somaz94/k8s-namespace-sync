@@ -15,12 +15,12 @@ spec:
   resourceFilters:
     configMaps:
       # include:
-      #   - "test-configmap*"    # All ConfigMaps starting with test-configmap
+      #   - "test-configmap*"    # Listed ConfigMaps starting with test-configmap
       exclude:
         - "*2"            # Exclude ConfigMaps ending with 2
     secrets:
       # include:
-      #   - "test-secret*"   # All Secrets starting with test-secret
+      #   - "test-secret*"   # Listed Secrets starting with test-secret
       exclude:
         - "*2"            # Exclude Secrets ending with 2
   exclude:
