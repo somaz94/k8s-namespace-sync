@@ -60,7 +60,6 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	log := log.FromContext(ctx).WithValues("request_name", req.Name, "request_namespace", req.Namespace)
 	log.Info("=== Reconcile function called ===")
 
-	// Get NamespaceSync resource
 	namespacesync := &syncv1.NamespaceSync{}
 	err := r.Get(ctx, req.NamespacedName, namespacesync)
 	if err != nil {
@@ -72,13 +71,11 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	// Validate NamespaceSync resource
 	if err := validateNamespaceSync(namespacesync); err != nil {
 		log.Error(err, "Invalid NamespaceSync resource")
 		if r.Recorder != nil {
 			r.Recorder.Event(namespacesync, corev1.EventTypeWarning, "ValidationFailed", err.Error())
 		}
-		// Update status to reflect validation error
 		failedNamespaces := map[string]string{"validation": err.Error()}
 		if updateErr := r.updateStatus(ctx, namespacesync, nil, failedNamespaces); updateErr != nil {
 			log.Error(updateErr, "Failed to update status after validation error")
@@ -86,12 +83,10 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	// Handle deletion
 	if !namespacesync.DeletionTimestamp.IsZero() {
 		return r.handleDeletionAndStatus(ctx, namespacesync)
 	}
 
-	// Add finalizer if it doesn't exist
 	if !controllerutil.ContainsFinalizer(namespacesync, finalizerName) {
 		log.Info("Adding finalizer")
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -113,7 +108,6 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
-	// Process the sync
 	log.Info("Successfully retrieved NamespaceSync resource",
 		"spec", namespacesync.Spec,
 		"status", namespacesync.Status)
@@ -121,17 +115,14 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	syncedNamespaces := []string{}
 	failedNamespaces := map[string]string{}
 
-	// Get list of all namespaces
 	namespaceList := &corev1.NamespaceList{}
 	if err := r.List(ctx, namespaceList); err != nil {
 		log.Error(err, "Failed to list namespaces")
 		return ctrl.Result{}, err
 	}
 
-	// Measure sync duration
 	startTime := time.Now()
 
-	// Sync to each namespace except the source and excluded ones
 	for _, ns := range namespaceList.Items {
 		if r.shouldSyncToNamespace(ctx, ns.Name, namespacesync) {
 			if err := r.syncResources(ctx, namespacesync, ns.Name); err != nil {
@@ -144,14 +135,11 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
-	// Record sync duration metric
 	syncDurationHistogram.WithLabelValues(namespacesync.Name, "all").Observe(time.Since(startTime).Seconds())
 
-	// Record resource count metrics
 	resourceCount.WithLabelValues(namespacesync.Name, "secret").Set(float64(len(namespacesync.Spec.SecretName)))
 	resourceCount.WithLabelValues(namespacesync.Name, "configmap").Set(float64(len(namespacesync.Spec.ConfigMapName)))
 
-	// Record events for sync results
 	if r.Recorder != nil {
 		if len(failedNamespaces) > 0 {
 			r.Recorder.Eventf(namespacesync, corev1.EventTypeWarning, "SyncFailed", "Failed to sync to %d namespaces", len(failedNamespaces))
@@ -161,7 +149,6 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
-	// Update status
 	if err := r.updateStatus(ctx, namespacesync, syncedNamespaces, failedNamespaces); err != nil {
 		log.Error(err, "Failed to update status")
 		return ctrl.Result{}, err
@@ -175,7 +162,6 @@ func (r *NamespaceSyncReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	logger := log.Log.WithName("namespacesync-controller")
 	logger.Info("Setting up controller manager")
 
-	// Set up the indexer for namespace events
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &syncv1.NamespaceSync{}, ".spec.sourceNamespace", func(rawObj client.Object) []string {
 		namespaceSync := rawObj.(*syncv1.NamespaceSync)
 		return []string{namespaceSync.Spec.SourceNamespace}

@@ -6,7 +6,6 @@ import (
 )
 
 var (
-	// syncSuccessCounter tracks successful resource synchronizations
 	syncSuccessCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "namespacesync_sync_success_total",
@@ -15,7 +14,6 @@ var (
 		[]string{"namespace", "resource_type"},
 	)
 
-	// syncFailureCounter tracks failed resource synchronizations
 	syncFailureCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "namespacesync_sync_failure_total",
@@ -24,7 +22,6 @@ var (
 		[]string{"namespace", "resource_type"},
 	)
 
-	// cleanupSuccessCounter tracks successful resource cleanups
 	cleanupSuccessCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "namespacesync_cleanup_success_total",
@@ -33,7 +30,6 @@ var (
 		[]string{"namespace", "resource_type"},
 	)
 
-	// cleanupFailureCounter tracks failed resource cleanups
 	cleanupFailureCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "namespacesync_cleanup_failure_total",
@@ -42,17 +38,15 @@ var (
 		[]string{"namespace", "resource_type"},
 	)
 
-	// syncDurationHistogram tracks the duration of sync operations
 	syncDurationHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "namespacesync_sync_duration_seconds",
 			Help:    "Duration of sync operations in seconds",
-			Buckets: prometheus.ExponentialBuckets(0.01, 2, 10), // 10ms to ~10s
+			Buckets: prometheus.ExponentialBuckets(0.01, 2, 10), // 10ms to 5.12s
 		},
 		[]string{"namespace", "resource_type"},
 	)
 
-	// resourceCount tracks the number of resources being managed
 	resourceCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "namespacesync_managed_resources",
@@ -63,7 +57,6 @@ var (
 )
 
 func init() {
-	// Register all metrics with the global prometheus registry
 	metrics.Registry.MustRegister(
 		syncSuccessCounter,
 		syncFailureCounter,

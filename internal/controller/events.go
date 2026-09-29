@@ -23,7 +23,6 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncs(ctx context.Context, obj cl
 
 	var requests []reconcile.Request
 	for _, ns := range namespaceSyncs.Items {
-		// 1. If the source namespace was changed
 		if namespace.Name == ns.Spec.SourceNamespace {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: types.NamespacedName{
@@ -36,7 +35,6 @@ func (r *NamespaceSyncReconciler) findNamespaceSyncs(ctx context.Context, obj cl
 				"namespace", namespace.Name)
 		}
 
-		// 2. If a target namespace was created/modified
 		if r.shouldSyncToNamespace(ctx, namespace.Name, &ns) {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: types.NamespacedName{

@@ -29,7 +29,6 @@ func (r *NamespaceSyncReconciler) handleDeletionAndStatus(ctx context.Context, n
 	log := log.FromContext(ctx)
 
 	if controllerutil.ContainsFinalizer(namespacesync, finalizerName) {
-		// Clean up synced resources
 		if err := r.cleanupSyncedResources(ctx, namespacesync); err != nil {
 			log.Error(err, "Failed to cleanup resources")
 			if r.Recorder != nil {
@@ -42,10 +41,8 @@ func (r *NamespaceSyncReconciler) handleDeletionAndStatus(ctx context.Context, n
 			r.Recorder.Event(namespacesync, corev1.EventTypeNormal, "CleanupComplete", "Successfully cleaned up synced resources")
 		}
 
-		// Remove the finalizer
 		controllerutil.RemoveFinalizer(namespacesync, finalizerName)
 		if err := r.Update(ctx, namespacesync); err != nil {
-			// Ignore if the resource has already been deleted
 			if apierrors.IsNotFound(err) {
 				return ctrl.Result{}, nil
 			}
@@ -113,7 +110,6 @@ func (r *NamespaceSyncReconciler) copyLabelsAndAnnotations(src, dst *metav1.Obje
 		dst.Annotations = make(map[string]string)
 	}
 
-	// Copy labels and annotations, excluding kubernetes.io/ prefixed ones
 	for k, v := range src.Labels {
 		if !strings.HasPrefix(k, "kubernetes.io/") {
 			dst.Labels[k] = v
@@ -125,14 +121,13 @@ func (r *NamespaceSyncReconciler) copyLabelsAndAnnotations(src, dst *metav1.Obje
 		}
 	}
 
-	// Add sync metadata
 	dst.Annotations[AnnotationSourceNamespace] = src.Namespace
 	dst.Annotations[AnnotationSourceName] = src.Name
 	dst.Annotations[AnnotationLastSync] = time.Now().Format(time.RFC3339)
 }
 
 // cleanupResource deletes a list of named resources from the given namespace.
-// deleteFunc creates the object stub for deletion.
+// newObj builds the typed stub passed to Delete.
 func (r *NamespaceSyncReconciler) cleanupResource(
 	ctx context.Context,
 	namespace string,

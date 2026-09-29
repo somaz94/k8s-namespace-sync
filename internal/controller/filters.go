@@ -22,12 +22,10 @@ func (r *NamespaceSyncReconciler) shouldSyncResource(name string, filter *syncv1
 		}
 	}
 
-	// If there are no include patterns, include all resources
 	if len(filter.Include) == 0 {
 		return true
 	}
 
-	// Check include patterns
 	for _, pattern := range filter.Include {
 		matched, err := filepath.Match(pattern, name)
 		if err == nil && matched {
@@ -42,25 +40,21 @@ func (r *NamespaceSyncReconciler) shouldSyncResource(name string, filter *syncv1
 func (r *NamespaceSyncReconciler) shouldSyncToNamespace(ctx context.Context, namespace string, namespaceSync *syncv1.NamespaceSync) bool {
 	logger := log.FromContext(ctx).WithValues("namespace", namespace)
 
-	// Check if it is a system namespace
 	if r.isSystemNamespace(namespace) {
 		logger.Info("Namespace is system namespace, skipping sync")
 		return false
 	}
 
-	// Skip if it is the same as the source namespace
 	if namespace == namespaceSync.Spec.SourceNamespace {
 		logger.Info("Namespace is source namespace, skipping sync")
 		return false
 	}
 
-	// Skip if the namespace is in the exclude list
 	if contains(namespaceSync.Spec.Exclude, namespace) {
 		logger.Info("Namespace is in exclude list, skipping sync")
 		return false
 	}
 
-	// If targetNamespaces is specified, only sync to namespaces in that list
 	if len(namespaceSync.Spec.TargetNamespaces) > 0 {
 		shouldSync := contains(namespaceSync.Spec.TargetNamespaces, namespace)
 		logger.Info("Checking target namespaces", "shouldSync", shouldSync)

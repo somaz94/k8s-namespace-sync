@@ -11,9 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// syncResourceList iterates over resource names and calls syncFn for each,
-// optionally filtering by a ResourceFilter. This eliminates duplication
-// between secret and configmap sync loops.
+// syncResourceList calls syncFn for each name that passes filter, stopping at the first error.
 func (r *NamespaceSyncReconciler) syncResourceList(ctx context.Context, names []string, filter *syncv1.ResourceFilter, syncFn func(string) error, resourceType string, targetNamespace string) error {
 	log := log.FromContext(ctx)
 	for _, name := range names {
@@ -44,14 +42,12 @@ func (r *NamespaceSyncReconciler) syncResources(ctx context.Context, namespaceSy
 		configMapFilter = namespaceSync.Spec.ResourceFilters.ConfigMaps
 	}
 
-	// Sync Secrets
 	if err := r.syncResourceList(ctx, namespaceSync.Spec.SecretName, secretFilter, func(name string) error {
 		return r.syncSecret(ctx, namespaceSync.Spec.SourceNamespace, targetNamespace, name)
 	}, "secret", targetNamespace); err != nil {
 		return err
 	}
 
-	// Sync ConfigMaps
 	return r.syncResourceList(ctx, namespaceSync.Spec.ConfigMapName, configMapFilter, func(name string) error {
 		return r.syncConfigMap(ctx, namespaceSync.Spec.SourceNamespace, targetNamespace, name)
 	}, "configmap", targetNamespace)
@@ -61,7 +57,6 @@ func (r *NamespaceSyncReconciler) syncResources(ctx context.Context, namespaceSy
 func (r *NamespaceSyncReconciler) syncSecret(ctx context.Context, sourceNamespace, targetNamespace, secretName string) error {
 	log := log.FromContext(ctx)
 
-	// Get source secret
 	var secret corev1.Secret
 	if err := r.Get(ctx, client.ObjectKey{
 		Namespace: sourceNamespace,
@@ -109,7 +104,6 @@ func (r *NamespaceSyncReconciler) syncSecret(ctx context.Context, sourceNamespac
 func (r *NamespaceSyncReconciler) syncConfigMap(ctx context.Context, sourceNamespace, targetNamespace, configMapName string) error {
 	log := log.FromContext(ctx)
 
-	// Get source configmap
 	var configMap corev1.ConfigMap
 	if err := r.Get(ctx, client.ObjectKey{
 		Namespace: sourceNamespace,
