@@ -1,4 +1,4 @@
-# Build the manager binary
+# Keep line 1 a comment: under GNU sed, the Makefile docker-buildx '1,//' rewrite would also re-platform the final FROM.
 FROM golang:1.27 AS builder
 ARG TARGETOS
 ARG TARGETARCH
@@ -8,22 +8,17 @@ ARG BUILD_DATE=unknown
 
 WORKDIR /workspace
 
-# Copy the Go Modules manifests
 COPY go.mod go.sum ./
 
 # Cache deps in a dedicated layer with mount cache for faster rebuilds
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
-# Copy the go source
 COPY cmd/main.go cmd/main.go
 COPY api/ api/
 COPY internal/ internal/
 
-# Build with cache mounts for Go build cache and module cache
-# - Removed -a flag to leverage incremental build cache
-# - Added -trimpath for reproducible builds
-# - Added ldflags to strip debug info, reduce binary size, and inject version
+# No -a on purpose: it forces a full rebuild and defeats the go-build cache mount.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
@@ -41,7 +36,6 @@ ARG VERSION=dev
 ARG GIT_COMMIT=unknown
 ARG BUILD_DATE=unknown
 
-# OCI image labels
 LABEL org.opencontainers.image.title="k8s-namespace-sync" \
       org.opencontainers.image.description="Kubernetes namespace resource synchronization controller" \
       org.opencontainers.image.url="https://github.com/somaz94/k8s-namespace-sync" \

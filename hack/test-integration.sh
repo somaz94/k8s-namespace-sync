@@ -1,7 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -82,7 +81,6 @@ log_info "========================================="
 log_info "K8s Namespace Sync Integration Test"
 log_info "========================================="
 
-# ── Check Prerequisites ──
 log_info "Checking prerequisites..."
 
 if ! kubectl cluster-info >/dev/null 2>&1; then
@@ -91,7 +89,6 @@ if ! kubectl cluster-info >/dev/null 2>&1; then
 fi
 log_pass "Kubernetes cluster is accessible"
 
-# Auto-install CRD if not found
 if ! kubectl get crd namespacesyncs.sync.nsync.dev >/dev/null 2>&1; then
   log_info "NamespaceSync CRD not found. Installing with 'make install'..."
   make install
@@ -102,10 +99,8 @@ if ! kubectl get crd namespacesyncs.sync.nsync.dev >/dev/null 2>&1; then
 fi
 log_pass "NamespaceSync CRD is installed"
 
-# Auto-deploy controller if not running
 CONTROLLER_POD=$(kubectl get pods -n "$NAMESPACE" -l control-plane=controller-manager -o name 2>/dev/null | head -1)
 if [ -n "$CONTROLLER_POD" ]; then
-  # Ensure imagePullPolicy is Always for testing
   kubectl patch deployment k8s-namespace-sync-controller-manager -n "$NAMESPACE" \
     -p '{"spec":{"template":{"spec":{"containers":[{"name":"manager","imagePullPolicy":"Always"}]}}}}' 2>/dev/null || true
   kubectl rollout status deployment/k8s-namespace-sync-controller-manager -n "$NAMESPACE" --timeout=120s 2>/dev/null || true
@@ -130,7 +125,6 @@ elif [ -z "$CONTROLLER_POD" ]; then
 fi
 log_pass "Controller pod is running"
 
-# ── Setup Test Environment ──
 log_info "Setting up test environment..."
 
 kubectl create ns test-ns1 2>/dev/null || true
@@ -144,7 +138,6 @@ kubectl apply -f "${SAMPLES_DIR}/test-secret.yaml"
 kubectl apply -f "${SAMPLES_DIR}/test-secret2.yaml"
 log_pass "Test resources created in default namespace"
 
-# ── Test A: Basic Sync (all namespaces) ──
 echo ""
 log_info "--- Test A: Basic Sync (all namespaces) ---"
 kubectl apply -f "${SAMPLES_DIR}/sync_v1_namespacesync.yaml"
@@ -155,35 +148,30 @@ else
   log_fail "Basic Sync: CR did not reach Ready state"
 fi
 
-# Verify configmap synced to test-ns1
 if kubectl get configmap test-configmap -n test-ns1 >/dev/null 2>&1; then
   log_pass "Basic Sync: ConfigMap synced to test-ns1"
 else
   log_fail "Basic Sync: ConfigMap NOT synced to test-ns1"
 fi
 
-# Verify secret synced to test-ns1
 if kubectl get secret test-secret -n test-ns1 >/dev/null 2>&1; then
   log_pass "Basic Sync: Secret synced to test-ns1"
 else
   log_fail "Basic Sync: Secret NOT synced to test-ns1"
 fi
 
-# Verify synced to test-ns2
 if kubectl get configmap test-configmap -n test-ns2 >/dev/null 2>&1; then
   log_pass "Basic Sync: ConfigMap synced to test-ns2"
 else
   log_fail "Basic Sync: ConfigMap NOT synced to test-ns2"
 fi
 
-# Verify synced to test-ns3
 if kubectl get configmap test-configmap -n test-ns3 >/dev/null 2>&1; then
   log_pass "Basic Sync: ConfigMap synced to test-ns3"
 else
   log_fail "Basic Sync: ConfigMap NOT synced to test-ns3"
 fi
 
-# Verify data integrity
 SYNCED_DATA=$(kubectl get configmap test-configmap -n test-ns1 -o jsonpath='{.data.app\.properties}' 2>/dev/null || echo "")
 if echo "$SYNCED_DATA" | grep -q "environment=development"; then
   log_pass "Basic Sync: Data integrity verified"
@@ -193,7 +181,6 @@ fi
 
 cleanup_cr
 
-# ── Test B: Target Namespaces ──
 echo ""
 log_info "--- Test B: Target Namespaces ---"
 kubectl apply -f "${SAMPLES_DIR}/sync_v1_namespacesync_target.yaml"
@@ -204,28 +191,24 @@ else
   log_fail "Target: CR did not reach Ready state"
 fi
 
-# Should sync to test-ns1 (target)
 if kubectl get configmap test-configmap -n test-ns1 >/dev/null 2>&1; then
   log_pass "Target: ConfigMap synced to test-ns1 (target)"
 else
   log_fail "Target: ConfigMap NOT synced to test-ns1 (target)"
 fi
 
-# Should sync to test-ns2 (target)
 if kubectl get configmap test-configmap -n test-ns2 >/dev/null 2>&1; then
   log_pass "Target: ConfigMap synced to test-ns2 (target)"
 else
   log_fail "Target: ConfigMap NOT synced to test-ns2 (target)"
 fi
 
-# Should NOT sync to test-ns3 (not in target list)
 if kubectl get configmap test-configmap -n test-ns3 >/dev/null 2>&1; then
   log_fail "Target: ConfigMap leaked to test-ns3 (not target)"
 else
   log_pass "Target: ConfigMap correctly NOT synced to test-ns3"
 fi
 
-# Verify multiple resources: configmap2 and secret2
 if kubectl get configmap test-configmap2 -n test-ns1 >/dev/null 2>&1; then
   log_pass "Target: ConfigMap2 synced to test-ns1"
 else
@@ -240,7 +223,6 @@ fi
 
 cleanup_cr
 
-# ── Test C: Exclude Namespaces ──
 echo ""
 log_info "--- Test C: Exclude Namespaces ---"
 kubectl apply -f "${SAMPLES_DIR}/sync_v1_namespacesync_exclude.yaml"
@@ -251,21 +233,18 @@ else
   log_fail "Exclude: CR did not reach Ready state"
 fi
 
-# Should sync to test-ns1 (not excluded)
 if kubectl get configmap test-configmap -n test-ns1 >/dev/null 2>&1; then
   log_pass "Exclude: ConfigMap synced to test-ns1 (not excluded)"
 else
   log_fail "Exclude: ConfigMap NOT synced to test-ns1"
 fi
 
-# Should NOT sync to test-ns2 (excluded)
 if kubectl get configmap test-configmap -n test-ns2 >/dev/null 2>&1; then
   log_fail "Exclude: ConfigMap leaked to test-ns2 (excluded)"
 else
   log_pass "Exclude: ConfigMap correctly NOT synced to test-ns2"
 fi
 
-# Should NOT sync to test-ns3 (excluded)
 if kubectl get configmap test-configmap -n test-ns3 >/dev/null 2>&1; then
   log_fail "Exclude: ConfigMap leaked to test-ns3 (excluded)"
 else
@@ -274,7 +253,6 @@ fi
 
 cleanup_cr
 
-# ── Test D: Resource Filters ──
 echo ""
 log_info "--- Test D: Resource Filters ---"
 kubectl apply -f "${SAMPLES_DIR}/sync_v1_namespacesync_filter.yaml"
@@ -285,35 +263,31 @@ else
   log_fail "Filter: CR did not reach Ready state"
 fi
 
-# test-configmap should sync (not excluded by *2 pattern)
+# The filter sample excludes names matching "*2" and namespaces test-ns2/test-ns3.
 if kubectl get configmap test-configmap -n test-ns1 >/dev/null 2>&1; then
   log_pass "Filter: test-configmap synced (not filtered)"
 else
   log_fail "Filter: test-configmap NOT synced"
 fi
 
-# test-configmap2 should NOT sync (excluded by *2 pattern)
 if kubectl get configmap test-configmap2 -n test-ns1 >/dev/null 2>&1; then
   log_fail "Filter: test-configmap2 leaked (should be filtered by *2)"
 else
   log_pass "Filter: test-configmap2 correctly filtered out"
 fi
 
-# test-secret should sync (not excluded by *2 pattern)
 if kubectl get secret test-secret -n test-ns1 >/dev/null 2>&1; then
   log_pass "Filter: test-secret synced (not filtered)"
 else
   log_fail "Filter: test-secret NOT synced"
 fi
 
-# test-secret2 should NOT sync (excluded by *2 pattern)
 if kubectl get secret test-secret2 -n test-ns1 >/dev/null 2>&1; then
   log_fail "Filter: test-secret2 leaked (should be filtered by *2)"
 else
   log_pass "Filter: test-secret2 correctly filtered out"
 fi
 
-# test-ns2, test-ns3 excluded by namespace exclude
 if kubectl get configmap test-configmap -n test-ns2 >/dev/null 2>&1; then
   log_fail "Filter: ConfigMap leaked to test-ns2 (ns excluded)"
 else
@@ -322,7 +296,6 @@ fi
 
 cleanup_cr
 
-# ── Test E: Cleanup on Deletion ──
 echo ""
 log_info "--- Test E: Cleanup on Deletion ---"
 kubectl apply -f "${SAMPLES_DIR}/sync_v1_namespacesync_target.yaml"
@@ -333,18 +306,15 @@ else
   log_fail "Cleanup: CR did not reach Ready state"
 fi
 
-# Verify resources exist before deletion
 if kubectl get configmap test-configmap -n test-ns1 >/dev/null 2>&1; then
   log_pass "Cleanup: Resources exist before CR deletion"
 else
   log_fail "Cleanup: Resources not found before CR deletion"
 fi
 
-# Delete the CR
 kubectl delete namespacesync namespacesync-sample-target -n default
 sleep 5
 
-# Verify resources are cleaned up
 if kubectl get configmap test-configmap -n test-ns1 >/dev/null 2>&1; then
   log_fail "Cleanup: ConfigMap still exists after CR deletion"
 else
@@ -363,7 +333,6 @@ else
   log_pass "Cleanup: ConfigMap removed from test-ns2"
 fi
 
-# ── Test F: Dynamic Namespace Detection ──
 echo ""
 log_info "--- Test F: Dynamic Namespace Detection ---"
 kubectl apply -f "${SAMPLES_DIR}/sync_v1_namespacesync.yaml"
@@ -374,11 +343,9 @@ else
   log_fail "Dynamic NS: CR did not reach Ready state"
 fi
 
-# Create a new namespace after CR is active
 kubectl create ns test-ns-dynamic 2>/dev/null || true
 sleep 5
 
-# Verify resources synced to the new namespace
 if kubectl get configmap test-configmap -n test-ns-dynamic >/dev/null 2>&1; then
   log_pass "Dynamic NS: ConfigMap synced to newly created namespace"
 else
@@ -394,7 +361,6 @@ fi
 cleanup_cr
 kubectl delete ns test-ns-dynamic --ignore-not-found 2>/dev/null || true
 
-# ── Test G: Event Recording ──
 echo ""
 log_info "--- Test G: Event Recording ---"
 
@@ -417,7 +383,6 @@ else
   log_fail "Events: CR did not reach Ready state"
 fi
 
-# Check events exist
 EVENTS=$(kubectl get events --field-selector involvedObject.name=test-events --no-headers 2>/dev/null | wc -l | tr -d ' ')
 if [ "$EVENTS" -gt 0 ]; then
   log_pass "Events: ${EVENTS} events recorded"
@@ -425,7 +390,6 @@ else
   log_fail "Events: No events recorded"
 fi
 
-# Verify SyncComplete event
 if kubectl get events --field-selector involvedObject.name=test-events --no-headers 2>/dev/null | grep -q "SyncComplete"; then
   log_pass "Events: SyncComplete event found"
 else
@@ -435,7 +399,6 @@ fi
 kubectl delete namespacesync test-events --timeout=30s 2>/dev/null || true
 sleep 2
 
-# ── Test H: Status Conditions ──
 echo ""
 log_info "--- Test H: Status Conditions ---"
 
@@ -458,7 +421,6 @@ else
   log_fail "Status: CR did not reach Ready state"
 fi
 
-# Check Ready condition reason
 REASON=$(kubectl get namespacesync test-status -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}' 2>/dev/null)
 if [ "$REASON" = "SyncComplete" ]; then
   log_pass "Status: Reason is SyncComplete"
@@ -466,7 +428,6 @@ else
   log_fail "Status: Expected reason SyncComplete, got: ${REASON}"
 fi
 
-# Check message contains namespace count
 MESSAGE=$(kubectl get namespacesync test-status -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null)
 if echo "$MESSAGE" | grep -q "namespace"; then
   log_pass "Status: Message contains namespace info: ${MESSAGE}"
@@ -477,7 +438,6 @@ fi
 kubectl delete namespacesync test-status --timeout=30s 2>/dev/null || true
 sleep 2
 
-# ── Test I: Sync Metadata Annotations ──
 echo ""
 log_info "--- Test I: Sync Metadata Annotations ---"
 
@@ -500,7 +460,6 @@ else
   log_fail "Metadata: CR did not reach Ready state"
 fi
 
-# Check sync metadata annotation on target secret
 SOURCE_NS_ANNOTATION=$(kubectl get secret test-secret -n test-ns1 -o jsonpath='{.metadata.annotations.namespacesync\.nsync\.dev/source-namespace}' 2>/dev/null)
 if [ "$SOURCE_NS_ANNOTATION" = "default" ]; then
   log_pass "Metadata: Source namespace annotation present"
@@ -518,7 +477,6 @@ fi
 kubectl delete namespacesync test-metadata --timeout=30s 2>/dev/null || true
 sleep 2
 
-# ── Summary ──
 echo ""
 log_info "========================================="
 log_info "Integration Test Summary"

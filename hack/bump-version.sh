@@ -12,10 +12,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# Project name (auto-detected from Makefile IMG)
+# Must match the image name in Makefile's IMG and the helm/<name> chart directory.
 PROJECT_NAME="k8s-namespace-sync"
 
-# Extract current version from Makefile
 get_current_version() {
     grep -o "${PROJECT_NAME}:v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*" "${ROOT_DIR}/Makefile" \
         | head -1 \
@@ -29,7 +28,6 @@ if [[ $# -ne 1 ]]; then
     exit 1
 fi
 
-# Show current version and exit
 if [[ "$1" == "--current" ]]; then
     CURRENT="$(get_current_version)"
     if [[ -z "${CURRENT}" ]]; then
@@ -49,7 +47,6 @@ fi
 
 NEW_VERSION="$1"
 
-# Validate version format (vX.Y.Z)
 if [[ ! "${NEW_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "Error: Version must be in format vX.Y.Z (e.g., v0.3.0)"
     exit 1
@@ -58,7 +55,6 @@ fi
 # Strip 'v' prefix for chart version
 CHART_VERSION="${NEW_VERSION#v}"
 
-# Detect current version
 CURRENT_VERSION="$(get_current_version)"
 if [[ -z "${CURRENT_VERSION}" ]]; then
     echo "Error: Could not detect current version from Makefile"

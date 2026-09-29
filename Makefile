@@ -15,10 +15,7 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
-# CONTAINER_TOOL defines the container tool to be used for building images.
-# Be aware that the target commands are only tested with Docker which is
-# scaffolded by default. However, you might want to replace it to use other
-# tools. (i.e. podman)
+# Targets are only tested with docker; other tools (e.g. podman) may need recipe changes.
 CONTAINER_TOOL ?= docker
 
 # Setting SHELL to bash allows bash commands to be executed by recipes.
@@ -31,16 +28,7 @@ all: build
 
 ##@ General
 
-# The help target prints out all targets with their descriptions organized
-# beneath their categories. The categories are represented by '##@' and the
-# target descriptions by '##'. The awk command is responsible for reading the
-# entire set of makefiles included in this invocation, looking for lines of the
-# file as xyz: ## something, and then pretty-format the target and help. Then,
-# if there's a line with ##@ something, that gets pretty-printed as a category.
-# More info on the usage of ANSI control characters for terminal formatting:
-# https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters
-# More info on the awk command:
-# http://linuxcommand.org/lc3_adv_awk.php
+# help: '##@ <name>' lines are section headers; '<target>: ## <text>' lines are listed under them.
 
 .PHONY: help
 help: ## Display this help.
@@ -68,11 +56,8 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
-# TODO(user): To use a different vendor for e2e tests, modify the setup under 'tests/e2e'.
-# The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.
-# Prometheus and CertManager are installed by default; skip with:
-# - PROMETHEUS_INSTALL_SKIP=true
-# - CERT_MANAGER_INSTALL_SKIP=true
+# TODO(scaffolded 2024-12-03): to use an e2e vendor other than Kind, change the setup under test/e2e.
+# PROMETHEUS_INSTALL_SKIP=true / CERT_MANAGER_INSTALL_SKIP=true skip those installs.
 .PHONY: test-e2e
 test-e2e: manifests generate fmt vet ## Run the e2e tests. Expected an isolated environment using Kind.
 	@command -v kind >/dev/null 2>&1 || { \
@@ -111,9 +96,6 @@ build: manifests generate fmt vet ## Build manager binary.
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./cmd/main.go
 
-# If you wish to build the manager image targeting other platforms you can use the --platform flag.
-# (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
-# More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 DOCKER_BUILD_ARGS = \
 	--build-arg VERSION=$(shell echo ${IMG} | cut -d: -f2) \
 	--build-arg GIT_COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo unknown) \
@@ -127,12 +109,7 @@ docker-build: ## Build docker image with the manager.
 docker-push: ## Push docker image with the manager.
 	$(CONTAINER_TOOL) push ${IMG}
 
-# PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
-# architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:
-# - be able to use docker buildx. More info: https://docs.docker.com/build/buildx/
-# - have enabled BuildKit. More info: https://docs.docker.com/develop/develop-images/build_enhancements/
-# - be able to push the image to your registry (i.e. if you do not set a valid value via IMG=<myregistry/image:<tag>> then the export will fail)
-# To adequately provide solutions that are compatible with multiple platforms, you should consider using this option.
+# docker-buildx-* push directly: needs docker buildx and push access to IMG's registry.
 PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
 .PHONY: docker-buildx-tag
 docker-buildx-tag: ## Build and push docker image for the manager for cross-platform support with specific version
@@ -140,7 +117,6 @@ docker-buildx-tag: ## Build and push docker image for the manager for cross-plat
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
 	- $(CONTAINER_TOOL) buildx create --name k8s-namespace-sync-builder
 	$(CONTAINER_TOOL) buildx use k8s-namespace-sync-builder
-	# Build and push version-specific tag
 	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) \
 		$(DOCKER_BUILD_ARGS) \
 		--tag ${IMG} \
@@ -154,7 +130,6 @@ docker-buildx-latest: ## Build and push docker image for the manager for cross-p
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
 	- $(CONTAINER_TOOL) buildx create --name k8s-namespace-sync-builder
 	$(CONTAINER_TOOL) buildx use k8s-namespace-sync-builder
-	# Build and push latest tag
 	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) \
 		$(DOCKER_BUILD_ARGS) \
 		--tag $(shell echo ${IMG} | cut -f1 -d:):latest \
@@ -272,7 +247,6 @@ golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint,$(GOLANGCI_LINT_VERSION))
 
-# k8s binaries for envtest
 .PHONY: envtest-bins
 envtest-bins: envtest ## Download k8s binaries for envtest
 	$(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN)
