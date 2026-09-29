@@ -54,7 +54,6 @@ var _ = Describe("NamespaceSync Controller with Resource Filters", func() {
 			Expect(k8sClient.Create(ctx, targetNs)).To(Succeed())
 
 			By("Creating source ConfigMaps and Secrets")
-			// Create ConfigMaps with different patterns
 			configMaps := []string{"app-config-1", "app-config-2", "other-config"}
 			for _, name := range configMaps {
 				configMap := &corev1.ConfigMap{
@@ -69,7 +68,6 @@ var _ = Describe("NamespaceSync Controller with Resource Filters", func() {
 				Expect(k8sClient.Create(ctx, configMap)).To(Succeed())
 			}
 
-			// Create Secrets with different patterns
 			secrets := []string{"app-secret-1", "app-secret-2", "other-secret"}
 			for _, name := range secrets {
 				secret := &corev1.Secret{
@@ -111,7 +109,6 @@ var _ = Describe("NamespaceSync Controller with Resource Filters", func() {
 
 			By("Verifying only filtered ConfigMaps are synced")
 			Eventually(func() error {
-				// Should exist: app-config-1
 				var configMap corev1.ConfigMap
 				if err := k8sClient.Get(ctx, client.ObjectKey{
 					Namespace: "target-ns-filter",
@@ -138,7 +135,6 @@ var _ = Describe("NamespaceSync Controller with Resource Filters", func() {
 
 			By("Verifying only filtered Secrets are synced")
 			Eventually(func() error {
-				// Should exist: app-secret-1
 				var secret corev1.Secret
 				if err := k8sClient.Get(ctx, client.ObjectKey{
 					Namespace: "target-ns-filter",

@@ -723,22 +723,17 @@ var _ = Describe("NamespaceSync Labels and Annotations", func() {
 					return err
 				}
 
-				// Custom labels should be copied
 				Expect(targetCm.Labels["app"]).To(Equal("myapp"))
 				Expect(targetCm.Labels["version"]).To(Equal("v1"))
 
-				// kubernetes.io/ labels should NOT be copied
 				_, hasK8sLabel := targetCm.Labels["kubernetes.io/managed-by"]
 				Expect(hasK8sLabel).To(BeFalse(), "kubernetes.io/ label should not be copied")
 
-				// Custom annotations should be copied
 				Expect(targetCm.Annotations["custom-annotation"]).To(Equal("custom-value"))
 
-				// kubernetes.io/ annotations should NOT be copied
 				_, hasK8sAnnotation := targetCm.Annotations["kubernetes.io/description"]
 				Expect(hasK8sAnnotation).To(BeFalse(), "kubernetes.io/ annotation should not be copied")
 
-				// Sync metadata annotations should exist
 				Expect(targetCm.Annotations).To(HaveKey("namespacesync.nsync.dev/source-namespace"))
 				Expect(targetCm.Annotations).To(HaveKey("namespacesync.nsync.dev/source-name"))
 				Expect(targetCm.Annotations).To(HaveKey("namespacesync.nsync.dev/last-sync"))

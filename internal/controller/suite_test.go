@@ -40,14 +40,10 @@ import (
 	// +kubebuilder:scaffold:imports
 )
 
-// These tests use Ginkgo (BDD-style Go testing framework). Refer to
-// http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
-
 var (
-	cfg       *rest.Config
-	k8sClient client.Client
-	testEnv   *envtest.Environment
-	// ctx        context.Context
+	cfg        *rest.Config
+	k8sClient  client.Client
+	testEnv    *envtest.Environment
 	cancel     context.CancelFunc
 	k8sManager ctrl.Manager
 )
@@ -82,17 +78,13 @@ var _ = BeforeSuite(func(ctx context.Context) {
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
 
-		// The BinaryAssetsDirectory is only required if you want to run the tests directly
-		// without call the makefile target test. If not informed it will look for the
-		// default path defined in controller-runtime which is /usr/local/kubebuilder/.
-		// Note that you must have the required binaries setup under the bin directory to perform
-		// the tests directly. When we run make test it will be setup and used automatically.
+		// Used only by a plain `go test`; `make test` sets KUBEBUILDER_ASSETS, which wins.
+		// The version must match ENVTEST_K8S_VERSION in the Makefile.
 		BinaryAssetsDirectory: filepath.Join("..", "..", "bin", "k8s",
 			fmt.Sprintf("1.31.0-%s-%s", runtime.GOOS, runtime.GOARCH)),
 	}
 
 	var err error
-	// cfg is defined in this file globally.
 	cfg, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
@@ -106,7 +98,6 @@ var _ = BeforeSuite(func(ctx context.Context) {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
-	// Set up the controller manager
 	k8sManager, err = ctrl.NewManager(cfg, ctrl.Options{
 		Scheme: scheme.Scheme,
 		Metrics: server.Options{
@@ -116,7 +107,6 @@ var _ = BeforeSuite(func(ctx context.Context) {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	// Set up the controller
 	err = (&NamespaceSyncReconciler{
 		Client: k8sManager.GetClient(),
 		Scheme: k8sManager.GetScheme(),
@@ -126,7 +116,6 @@ var _ = BeforeSuite(func(ctx context.Context) {
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
-	// Start the manager
 	go func() {
 		defer GinkgoRecover()
 		err = k8sManager.Start(ctx)
@@ -138,18 +127,15 @@ var _ = AfterSuite(func(ctx SpecContext) {
 	By("tearing down the test environment")
 	cancel()
 
-	// Set up context timeout
 	cleanupCtx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
-	// Run testEnv.Stop() in a goroutine
 	done := make(chan error)
 	go func() {
 		done <- testEnv.Stop()
 		close(done)
 	}()
 
-	// Wait for timeout or completion
 	select {
 	case err := <-done:
 		if err != nil {

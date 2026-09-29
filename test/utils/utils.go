@@ -80,7 +80,6 @@ func UninstallPrometheusOperator() {
 // IsPrometheusCRDsInstalled checks if any Prometheus CRDs are installed
 // by verifying the existence of key CRDs related to Prometheus.
 func IsPrometheusCRDsInstalled() bool {
-	// List of common Prometheus CRDs
 	prometheusCRDs := []string{
 		"prometheuses.monitoring.coreos.com",
 		"prometheusrules.monitoring.coreos.com",
@@ -135,7 +134,6 @@ func InstallCertManager() error {
 // IsCertManagerCRDsInstalled checks if any Cert Manager CRDs are installed
 // by verifying the existence of key CRDs related to Cert Manager.
 func IsCertManagerCRDsInstalled() bool {
-	// List of common Cert Manager CRDs
 	certManagerCRDs := []string{
 		"certificates.cert-manager.io",
 		"issuers.cert-manager.io",
@@ -145,14 +143,12 @@ func IsCertManagerCRDsInstalled() bool {
 		"challenges.acme.cert-manager.io",
 	}
 
-	// Execute the kubectl command to get all CRDs
 	cmd := exec.Command("kubectl", "get", "crds")
 	output, err := Run(cmd)
 	if err != nil {
 		return false
 	}
 
-	// Check if any of the Cert Manager CRDs are present
 	crdList := GetNonEmptyLines(output)
 	for _, crd := range certManagerCRDs {
 		for _, line := range crdList {

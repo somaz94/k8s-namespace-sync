@@ -145,7 +145,7 @@ func TestReconcile_SuccessfulSync(t *testing.T) {
 
 	r := &NamespaceSyncReconciler{Client: client, Scheme: scheme}
 
-	// First reconcile adds finalizer
+	// The first pass adds the finalizer and syncs; the second re-syncs over existing copies.
 	_, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: "test-sync", Namespace: "src-ns"},
 	})
@@ -153,7 +153,6 @@ func TestReconcile_SuccessfulSync(t *testing.T) {
 		t.Fatalf("first reconcile error: %v", err)
 	}
 
-	// Second reconcile does the sync
 	_, err = r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: "test-sync", Namespace: "src-ns"},
 	})
@@ -161,14 +160,12 @@ func TestReconcile_SuccessfulSync(t *testing.T) {
 		t.Fatalf("second reconcile error: %v", err)
 	}
 
-	// Verify synced secret
 	var synced corev1.Secret
 	err = client.Get(context.Background(), types.NamespacedName{Name: "my-secret", Namespace: "tgt-ns"}, &synced)
 	if err != nil {
 		t.Errorf("expected secret to be synced to target, got error: %v", err)
 	}
 
-	// Verify synced configmap
 	var syncedCm corev1.ConfigMap
 	err = client.Get(context.Background(), types.NamespacedName{Name: "my-cm", Namespace: "tgt-ns"}, &syncedCm)
 	if err != nil {
@@ -183,14 +180,12 @@ func TestReconcile_Deletion(t *testing.T) {
 	sourceNs := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "del-src-ns"}}
 	targetNs := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "del-tgt-ns"}}
 
-	// Pre-synced secret in target
 	syncedSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: "del-secret", Namespace: "del-tgt-ns"},
 		Type:       corev1.SecretTypeOpaque,
 		Data:       map[string][]byte{"key": []byte("value")},
 	}
 
-	// Pre-synced configmap in target
 	syncedCm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: "del-cm", Namespace: "del-tgt-ns"},
 		Data:       map[string]string{"key": "value"},
@@ -226,14 +221,12 @@ func TestReconcile_Deletion(t *testing.T) {
 		t.Fatalf("reconcile deletion error: %v", err)
 	}
 
-	// Verify synced secret is cleaned up
 	var s corev1.Secret
 	err = client.Get(context.Background(), types.NamespacedName{Name: "del-secret", Namespace: "del-tgt-ns"}, &s)
 	if err == nil {
 		t.Error("expected secret to be deleted from target namespace")
 	}
 
-	// Verify synced configmap is cleaned up
 	var cm corev1.ConfigMap
 	err = client.Get(context.Background(), types.NamespacedName{Name: "del-cm", Namespace: "del-tgt-ns"}, &cm)
 	if err == nil {
@@ -247,14 +240,13 @@ func TestReconcile_SourceSecretNotFound_DeletesFromTarget(t *testing.T) {
 	sourceNs := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "snf-src-ns"}}
 	targetNs := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "snf-tgt-ns"}}
 
-	// Target has synced secret but source doesn't have it
+	// Target copies exist with no source objects behind them.
 	syncedSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: "missing-secret", Namespace: "snf-tgt-ns"},
 		Type:       corev1.SecretTypeOpaque,
 		Data:       map[string][]byte{"key": []byte("old-value")},
 	}
 
-	// Target has synced configmap but source doesn't have it
 	syncedCm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: "missing-cm", Namespace: "snf-tgt-ns"},
 		Data:       map[string]string{"key": "old-value"},
@@ -289,14 +281,12 @@ func TestReconcile_SourceSecretNotFound_DeletesFromTarget(t *testing.T) {
 		t.Fatalf("reconcile error: %v", err)
 	}
 
-	// Verify secret deleted from target since source doesn't have it
 	var s corev1.Secret
 	err = client.Get(context.Background(), types.NamespacedName{Name: "missing-secret", Namespace: "snf-tgt-ns"}, &s)
 	if err == nil {
 		t.Error("expected secret to be deleted from target namespace when source is missing")
 	}
 
-	// Verify configmap deleted from target since source doesn't have it
 	var cm corev1.ConfigMap
 	err = client.Get(context.Background(), types.NamespacedName{Name: "missing-cm", Namespace: "snf-tgt-ns"}, &cm)
 	if err == nil {
@@ -362,25 +352,21 @@ func TestReconcile_WithResourceFilters(t *testing.T) {
 		t.Fatalf("reconcile error: %v", err)
 	}
 
-	// app-secret should be synced (not excluded)
 	var s1 corev1.Secret
 	if err := client.Get(context.Background(), types.NamespacedName{Name: "app-secret", Namespace: "rf-tgt-ns"}, &s1); err != nil {
 		t.Error("app-secret should be synced to target")
 	}
 
-	// app-secret-bak should NOT be synced (excluded by *-bak)
 	var s2 corev1.Secret
 	if err := client.Get(context.Background(), types.NamespacedName{Name: "app-secret-bak", Namespace: "rf-tgt-ns"}, &s2); err == nil {
 		t.Error("app-secret-bak should NOT be synced to target")
 	}
 
-	// app-config should be synced (included)
 	var c1 corev1.ConfigMap
 	if err := client.Get(context.Background(), types.NamespacedName{Name: "app-config", Namespace: "rf-tgt-ns"}, &c1); err != nil {
 		t.Error("app-config should be synced to target")
 	}
 
-	// app-config-bak should NOT be synced (not in include list)
 	var c2 corev1.ConfigMap
 	if err := client.Get(context.Background(), types.NamespacedName{Name: "app-config-bak", Namespace: "rf-tgt-ns"}, &c2); err == nil {
 		t.Error("app-config-bak should NOT be synced to target")
@@ -398,7 +384,6 @@ func TestReconcile_UpdateExistingResources(t *testing.T) {
 		Type:       corev1.SecretTypeOpaque,
 		Data:       map[string][]byte{"key": []byte(updatedValue)},
 	}
-	// Pre-existing secret in target with old data
 	existingSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: "upd-secret", Namespace: "upd-tgt-ns"},
 		Type:       corev1.SecretTypeOpaque,
@@ -444,7 +429,6 @@ func TestReconcile_UpdateExistingResources(t *testing.T) {
 		t.Fatalf("reconcile error: %v", err)
 	}
 
-	// Verify secret updated
 	var s corev1.Secret
 	if err := client.Get(context.Background(), types.NamespacedName{Name: "upd-secret", Namespace: "upd-tgt-ns"}, &s); err != nil {
 		t.Fatalf("failed to get updated secret: %v", err)
@@ -453,7 +437,6 @@ func TestReconcile_UpdateExistingResources(t *testing.T) {
 		t.Errorf("expected secret data 'new-value', got %q", string(s.Data["key"]))
 	}
 
-	// Verify configmap updated
 	var cm corev1.ConfigMap
 	if err := client.Get(context.Background(), types.NamespacedName{Name: "upd-cm", Namespace: "upd-tgt-ns"}, &cm); err != nil {
 		t.Fatalf("failed to get updated configmap: %v", err)
@@ -488,21 +471,19 @@ func TestFindNamespaceSyncs(t *testing.T) {
 
 	r := &NamespaceSyncReconciler{Client: client, Scheme: scheme}
 
-	// Source namespace change triggers reconcile
 	sourceNs := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "event-src-ns"}}
 	requests := r.findNamespaceSyncs(context.Background(), sourceNs)
 	if len(requests) == 0 {
 		t.Error("expected reconcile request for source namespace change")
 	}
 
-	// Target namespace change triggers reconcile
+	// No targetNamespaces, so any non-system, non-excluded namespace is a target.
 	targetNs := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "some-target-ns"}}
 	requests = r.findNamespaceSyncs(context.Background(), targetNs)
 	if len(requests) == 0 {
 		t.Error("expected reconcile request for target namespace change")
 	}
 
-	// System namespace should not trigger reconcile
 	sysNs := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "kube-system"}}
 	requests = r.findNamespaceSyncs(context.Background(), sysNs)
 	if len(requests) != 0 {
@@ -532,21 +513,18 @@ func TestFindNamespaceSyncsForSecret(t *testing.T) {
 
 	r := &NamespaceSyncReconciler{Client: client, Scheme: scheme}
 
-	// Source secret triggers reconcile
 	srcSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "watched-secret", Namespace: "sec-src-ns"}}
 	requests := r.findNamespaceSyncsForSecret(context.Background(), srcSecret)
 	if len(requests) == 0 {
 		t.Error("expected reconcile for source secret change")
 	}
 
-	// Target secret triggers reconcile
 	tgtSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "watched-secret", Namespace: "sec-tgt-ns"}}
 	requests = r.findNamespaceSyncsForSecret(context.Background(), tgtSecret)
 	if len(requests) == 0 {
 		t.Error("expected reconcile for target secret change")
 	}
 
-	// Unrelated secret does not trigger
 	otherSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "other-secret", Namespace: "sec-src-ns"}}
 	requests = r.findNamespaceSyncsForSecret(context.Background(), otherSecret)
 	if len(requests) != 0 {
@@ -781,7 +759,6 @@ func TestUpdateStatus_AllSynced(t *testing.T) {
 		t.Fatalf("updateStatus error: %v", err)
 	}
 
-	// Fetch the updated resource
 	var updated syncv1.NamespaceSync
 	err = c.Get(context.Background(), types.NamespacedName{Name: "status-all-synced", Namespace: "status-ns"}, &updated)
 	if err != nil {
@@ -990,21 +967,18 @@ func TestFindNamespaceSyncsForConfigMap(t *testing.T) {
 
 	r := &NamespaceSyncReconciler{Client: client, Scheme: scheme}
 
-	// Source configmap triggers reconcile
 	srcCm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "watched-cm", Namespace: "cm-src-ns"}}
 	requests := r.findNamespaceSyncsForConfigMap(context.Background(), srcCm)
 	if len(requests) == 0 {
 		t.Error("expected reconcile for source configmap change")
 	}
 
-	// Target configmap triggers reconcile
 	tgtCm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "watched-cm", Namespace: "cm-tgt-ns"}}
 	requests = r.findNamespaceSyncsForConfigMap(context.Background(), tgtCm)
 	if len(requests) == 0 {
 		t.Error("expected reconcile for target configmap change")
 	}
 
-	// Unrelated configmap does not trigger
 	otherCm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "other-cm", Namespace: "cm-src-ns"}}
 	requests = r.findNamespaceSyncsForConfigMap(context.Background(), otherCm)
 	if len(requests) != 0 {

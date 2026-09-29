@@ -30,23 +30,17 @@ import (
 	"github.com/somaz94/k8s-namespace-sync/test/utils"
 )
 
-// namespace where the project is deployed in
 const namespace = "k8s-namespace-sync-system"
 
-// serviceAccountName created for the project
 const serviceAccountName = "k8s-namespace-sync-controller-manager"
 
-// metricsServiceName is the name of the metrics service of the project
 const metricsServiceName = "k8s-namespace-sync-controller-manager-metrics-service"
 
-// metricsRoleBindingName is the name of the RBAC that will be created to allow get the metrics data
 const metricsRoleBindingName = "k8s-namespace-sync-metrics-binding"
 
 var _ = Describe("Manager", Ordered, func() {
 	var controllerPodName string
 
-	// Before running the tests, set up the environment by creating the namespace,
-	// installing CRDs, and deploying the controller.
 	BeforeAll(func() {
 		By("creating manager namespace")
 		cmd := exec.Command("kubectl", "create", "ns", namespace)
@@ -64,8 +58,6 @@ var _ = Describe("Manager", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred(), "Failed to deploy the controller-manager")
 	})
 
-	// After all tests have been executed, clean up by undeploying the controller, uninstalling CRDs,
-	// and deleting the namespace.
 	AfterAll(func() {
 		By("cleaning up the curl pod for metrics")
 		cmd := exec.Command("kubectl", "delete", "pod", "curl-metrics", "-n", namespace)
@@ -84,8 +76,6 @@ var _ = Describe("Manager", Ordered, func() {
 		_, _ = utils.Run(cmd)
 	})
 
-	// After each test, check for failures and collect logs, events,
-	// and pod descriptions for debugging.
 	AfterEach(func() {
 		specReport := CurrentSpecReport()
 		if specReport.Failed() {
@@ -134,7 +124,6 @@ var _ = Describe("Manager", Ordered, func() {
 		It("should run successfully", func() {
 			By("validating that the controller-manager pod is running as expected")
 			verifyControllerUp := func(g Gomega) {
-				// Get the name of the controller-manager pod
 				cmd := exec.Command("kubectl", "get",
 					"pods", "-l", "control-plane=controller-manager",
 					"-o", "go-template={{ range .items }}"+
@@ -151,7 +140,6 @@ var _ = Describe("Manager", Ordered, func() {
 				controllerPodName = podNames[0]
 				g.Expect(controllerPodName).To(ContainSubstring("controller-manager"))
 
-				// Validate the pod's status
 				cmd = exec.Command("kubectl", "get",
 					"pods", controllerPodName, "-o", "jsonpath={.status.phase}",
 					"-n", namespace,
@@ -236,27 +224,18 @@ var _ = Describe("Manager", Ordered, func() {
 
 		// +kubebuilder:scaffold:e2e-webhooks-checks
 
-		// TODO: Customize the e2e test suite with scenarios specific to your project.
-		// Consider applying sample/CR(s) and check their status and/or verifying
-		// the reconciliation by using the metrics, i.e.:
-		// metricsOutput := getMetricsOutput()
-		// Expect(metricsOutput).To(ContainSubstring(
-		//    fmt.Sprintf(`controller_runtime_reconcile_total{controller="%s",result="success"} 1`,
-		//    strings.ToLower(<Kind>),
-		// ))
+		// TODO(scaffolded 2024-12-03): add NamespaceSync scenarios, e.g. apply config/samples and
+		// assert controller_runtime_reconcile_total{controller="namespacesync",result="success"}.
 	})
 })
 
-// serviceAccountToken returns a token for the specified service account in the given namespace.
-// It uses the Kubernetes TokenRequest API to generate a token by directly sending a request
-// and parsing the resulting token from the API response.
+// serviceAccountToken mints a token for serviceAccountName via the TokenRequest API.
 func serviceAccountToken() (string, error) {
 	const tokenRequestRawString = `{
 		"apiVersion": "authentication.k8s.io/v1",
 		"kind": "TokenRequest"
 	}`
 
-	// Temporary file to store the token request
 	secretName := fmt.Sprintf("%s-token-request", serviceAccountName)
 	tokenRequestFile := filepath.Join("/tmp", secretName)
 	err := os.WriteFile(tokenRequestFile, []byte(tokenRequestRawString), os.FileMode(0o644))
@@ -266,7 +245,6 @@ func serviceAccountToken() (string, error) {
 
 	var out string
 	verifyTokenCreation := func(g Gomega) {
-		// Execute kubectl command to create the token
 		cmd := exec.Command("kubectl", "create", "--raw", fmt.Sprintf(
 			"/api/v1/namespaces/%s/serviceaccounts/%s/token",
 			namespace,
@@ -276,7 +254,6 @@ func serviceAccountToken() (string, error) {
 		output, err := cmd.CombinedOutput()
 		g.Expect(err).NotTo(HaveOccurred())
 
-		// Parse the JSON output to extract the token
 		var token tokenRequest
 		err = json.Unmarshal(output, &token)
 		g.Expect(err).NotTo(HaveOccurred())

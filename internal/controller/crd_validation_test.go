@@ -57,8 +57,6 @@ var _ = Describe("NamespaceSync CRD validation", func() {
 		}
 	}
 
-	// createOK creates a resource that is expected to pass admission and
-	// registers it for cleanup.
 	createOK := func(ns *syncv1.NamespaceSync) {
 		Expect(k8sClient.Create(ctx, ns)).To(Succeed())
 		created = append(created, ns)
