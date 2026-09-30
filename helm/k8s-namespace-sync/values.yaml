@@ -84,7 +84,7 @@ crds:
   remove: true
 
 metrics:
-  enabled: true
+  enabled: true  # Creates the metrics Service; the manager serves /metrics either way.
   service:
     port: 8443
     annotations: {}

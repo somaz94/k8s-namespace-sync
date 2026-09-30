@@ -1,3 +1,4 @@
+{{- if .Values.metrics.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -20,3 +21,4 @@ spec:
   selector:
     {{- include "k8s-namespace-sync.selectorLabels" . | nindent 4 }}
     control-plane: controller-manager
+{{- end }}
