@@ -1,5 +1,7 @@
 #!/bin/bash
 set -euo pipefail
+# Checks pipe into `grep >/dev/null`, not `grep -q`: -q exits on the first match, and under pipefail the
+# writer's SIGPIPE then fails the whole check.
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -31,7 +33,7 @@ wait_for_resource() {
   local ns=$3
   local timeout=${4:-30}
   for i in $(seq 1 "$timeout"); do
-    if kubectl get "$resource" "$name" -n "$ns" 2>/dev/null | grep -q .; then
+    if kubectl get "$resource" "$name" -n "$ns" 2>/dev/null | grep . >/dev/null; then
       return 0
     fi
     sleep 1
@@ -112,7 +114,7 @@ elif [ -z "$CONTROLLER_POD" ]; then
     -p '{"spec":{"template":{"spec":{"containers":[{"name":"manager","imagePullPolicy":"Always"}]}}}}' 2>/dev/null || true
   log_info "Waiting for controller pod to be created..."
   for i in $(seq 1 60); do
-    if kubectl get pods -n "$NAMESPACE" -l control-plane=controller-manager -o name 2>/dev/null | grep -q .; then
+    if kubectl get pods -n "$NAMESPACE" -l control-plane=controller-manager -o name 2>/dev/null | grep . >/dev/null; then
       break
     fi
     sleep 2
@@ -173,7 +175,7 @@ else
 fi
 
 SYNCED_DATA=$(kubectl get configmap test-configmap -n test-ns1 -o jsonpath='{.data.app\.properties}' 2>/dev/null || echo "")
-if echo "$SYNCED_DATA" | grep -q "environment=development"; then
+if echo "$SYNCED_DATA" | grep "environment=development" >/dev/null; then
   log_pass "Basic Sync: Data integrity verified"
 else
   log_fail "Basic Sync: Data integrity check failed"
@@ -390,7 +392,7 @@ else
   log_fail "Events: No events recorded"
 fi
 
-if kubectl get events --field-selector involvedObject.name=test-events --no-headers 2>/dev/null | grep -q "SyncComplete"; then
+if kubectl get events --field-selector involvedObject.name=test-events --no-headers 2>/dev/null | grep "SyncComplete" >/dev/null; then
   log_pass "Events: SyncComplete event found"
 else
   log_fail "Events: SyncComplete event not found"
@@ -429,7 +431,7 @@ else
 fi
 
 MESSAGE=$(kubectl get namespacesync test-status -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null)
-if echo "$MESSAGE" | grep -q "namespace"; then
+if echo "$MESSAGE" | grep "namespace" >/dev/null; then
   log_pass "Status: Message contains namespace info: ${MESSAGE}"
 else
   log_fail "Status: Message missing namespace info: ${MESSAGE}"
