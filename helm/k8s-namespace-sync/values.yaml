@@ -86,6 +86,9 @@ crds:
   cleanupImage:
     repository: registry.k8s.io/kubectl
     tag: "v1.37.1"
+    pullPolicy: IfNotPresent
+  # Requests and limits for that Job's container, e.g. where a ResourceQuota requires them.
+  cleanupResources: {}
 
 metrics:
   enabled: true  # Creates the metrics Service; the manager serves /metrics either way.

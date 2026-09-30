@@ -1,5 +1,5 @@
 {{- if and .Values.crds.create .Values.crds.remove }}
-{{- /* The fallbacks cover helm upgrade --reuse-values from a chart that predates crds.cleanupImage. */}}
+{{- /* The fallbacks cover helm upgrade --reuse-values from a chart that predates these crds.cleanup* values. */}}
 {{- $cleanupImage := .Values.crds.cleanupImage | default dict }}
 ---
 apiVersion: v1
@@ -75,8 +75,13 @@ spec:
       containers:
       - name: kubectl
         image: "{{ $cleanupImage.repository | default "registry.k8s.io/kubectl" }}:{{ $cleanupImage.tag | default "v1.37.1" }}"
+        imagePullPolicy: {{ $cleanupImage.pullPolicy | default "IfNotPresent" }}
         command: ["kubectl"]
         args: ["delete", "crd", "namespacesyncs.sync.nsync.dev", "--ignore-not-found"]
+        {{- with .Values.crds.cleanupResources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true

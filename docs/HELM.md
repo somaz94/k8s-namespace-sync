@@ -88,6 +88,8 @@ The following table lists the configurable parameters of the k8s-namespace-sync 
 | `crds.remove` | Delete the CRD, and every NamespaceSync with it, on uninstall (requires `crds.create`) | `true` |
 | `crds.cleanupImage.repository` | Image for the pre-delete Job that deletes the CRD; it must have `kubectl` on `PATH` | `registry.k8s.io/kubectl` |
 | `crds.cleanupImage.tag` | Tag of that image | see `values.yaml` |
+| `crds.cleanupImage.pullPolicy` | Pull policy of that image | `IfNotPresent` |
+| `crds.cleanupResources` | Requests and limits for the pre-delete Job's container | `{}` |
 | `metrics.enabled` | Create the metrics Service (the manager serves `/metrics` either way); `helm test` checks this Service | `true` |
 | `metrics.service.port` | Metrics service port | `8443` |
 | `metrics.service.annotations` | Metrics service annotations | `{}` |
