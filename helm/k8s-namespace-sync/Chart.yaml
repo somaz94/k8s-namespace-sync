@@ -2,8 +2,8 @@ apiVersion: v2
 name: k8s-namespace-sync
 description: A Helm chart for K8s Namespace Sync Controller
 type: application
-version: 0.4.1
-appVersion: "v0.4.1"
+version: 0.4.2
+appVersion: "v0.4.2"
 
 kubeVersion: ">=1.25.0-0"
 
