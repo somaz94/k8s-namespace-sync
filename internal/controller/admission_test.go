@@ -104,21 +104,22 @@ var _ = Describe("Mutating admission on synced copies", func() {
 			g.Expect(synced.Labels).To(HaveKeyWithValue(injectedLabel, labelTrue))
 		}, 10*time.Second, 250*time.Millisecond).Should(Succeed())
 
-		var lastSyncTime metav1.Time
+		var (
+			lastSyncTime    metav1.Time
+			resourceVersion string
+		)
+		// Both stamps have one-second resolution, so a write in the same second would look like a no-op. Both are
+		// re-read on every poll, since the reconcile the copy's creation triggers can still move them.
 		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, copyKey, &synced)).To(Succeed())
 			g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(namespaceSync), namespaceSync)).To(Succeed())
 			g.Expect(namespaceSync.Status.LastSyncTime.IsZero()).To(BeFalse())
-			lastSyncTime = namespaceSync.Status.LastSyncTime
-		}, 10*time.Second, 250*time.Millisecond).Should(Succeed())
-
-		// Both stamps have one-second resolution, so a write in the same second would look like a no-op.
-		stamp, err := time.Parse(time.RFC3339, synced.Annotations[AnnotationLastSync])
-		Expect(err).NotTo(HaveOccurred())
-		Eventually(func() bool {
-			return time.Now().After(stamp.Add(time.Second)) && time.Now().After(lastSyncTime.Add(time.Second))
-		}, 5*time.Second, 50*time.Millisecond).Should(BeTrue())
-		Expect(k8sClient.Get(ctx, copyKey, &synced)).To(Succeed())
-		resourceVersion := synced.ResourceVersion
+			stamp, err := time.Parse(time.RFC3339, synced.Annotations[AnnotationLastSync])
+			g.Expect(err).NotTo(HaveOccurred())
+			lastSyncTime, resourceVersion = namespaceSync.Status.LastSyncTime, synced.ResourceVersion
+			g.Expect(time.Now().After(stamp.Add(time.Second))).To(BeTrue())
+			g.Expect(time.Now().After(lastSyncTime.Add(time.Second))).To(BeTrue())
+		}, 10*time.Second, 50*time.Millisecond).Should(Succeed())
 
 		By("forcing a resync, which strips the injected label")
 		Eventually(func() error {

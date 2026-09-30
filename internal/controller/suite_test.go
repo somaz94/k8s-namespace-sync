@@ -135,6 +135,11 @@ var _ = BeforeSuite(func(ctx context.Context) {
 		err = k8sManager.Start(ctx)
 		Expect(err).ToNot(HaveOccurred())
 	}()
+
+	// The webhook fails closed, so writes it covers are refused until its server answers.
+	Eventually(func() error {
+		return k8sManager.GetWebhookServer().StartedChecker()(nil)
+	}, 10*time.Second, 100*time.Millisecond).Should(Succeed())
 })
 
 var _ = AfterSuite(func(ctx SpecContext) {
