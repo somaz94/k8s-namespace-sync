@@ -27,6 +27,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -174,22 +175,22 @@ func (r *NamespaceSyncReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&syncv1.NamespaceSync{}).
+		For(&syncv1.NamespaceSync{}, builder.WithPredicates(namespaceSyncPredicate())).
 		WithEventFilter(predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool {
-				logger.Info("Create event detected", "name", e.Object.GetName())
+				logger.V(1).Info("Create event detected", "name", e.Object.GetName())
 				return true
 			},
 			UpdateFunc: func(e event.UpdateEvent) bool {
-				logger.Info("Update event detected", "name", e.ObjectNew.GetName())
+				logger.V(1).Info("Update event detected", "name", e.ObjectNew.GetName())
 				return true
 			},
 			DeleteFunc: func(e event.DeleteEvent) bool {
-				logger.Info("Delete event detected", "name", e.Object.GetName())
+				logger.V(1).Info("Delete event detected", "name", e.Object.GetName())
 				return true
 			},
 			GenericFunc: func(e event.GenericEvent) bool {
-				logger.Info("Generic event detected", "name", e.Object.GetName())
+				logger.V(1).Info("Generic event detected", "name", e.Object.GetName())
 				return true
 			},
 		}).
@@ -197,4 +198,10 @@ func (r *NamespaceSyncReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(r.findNamespaceSyncsForSecret)).
 		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(r.findNamespaceSyncsForConfigMap)).
 		Complete(r)
+}
+
+// namespaceSyncPredicate drops the controller's own status and finalizer writes, which change neither the
+// generation nor annotations. Setting deletionTimestamp bumps the generation, and annotating a CR forces a resync.
+func namespaceSyncPredicate() predicate.Predicate {
+	return predicate.Or[client.Object](predicate.GenerationChangedPredicate{}, predicate.AnnotationChangedPredicate{})
 }

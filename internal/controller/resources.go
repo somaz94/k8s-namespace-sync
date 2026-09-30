@@ -9,6 +9,7 @@ import (
 
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -55,7 +56,7 @@ func (r *NamespaceSyncReconciler) handleDeletionAndStatus(ctx context.Context, n
 	return ctrl.Result{}, nil
 }
 
-// createOrUpdateResource is a generic function that handles creation or update of a Kubernetes resource.
+// createOrUpdateResource creates desired, or updates existing to match it when anything but the last-sync stamp differs.
 // updateFields copies resource-specific data from desired to existing.
 func createOrUpdateResource[T client.Object](
 	r *NamespaceSyncReconciler,
@@ -89,7 +90,14 @@ func createOrUpdateResource[T client.Object](
 		return err
 	}
 
+	before := existing.DeepCopyObject().(T)
 	updateFields(desired, existing)
+
+	if equalIgnoringLastSync(before, existing) {
+		log.V(1).Info("Resource already in sync", "resourceType", resourceType)
+		recordSyncSuccess(desired.GetNamespace(), resourceType)
+		return nil
+	}
 
 	if err := r.Update(ctx, existing); err != nil {
 		log.Error(err, "Failed to update resource", "resourceType", resourceType)
@@ -100,6 +108,18 @@ func createOrUpdateResource[T client.Object](
 	log.Info("Successfully updated resource", "resourceType", resourceType)
 	recordSyncSuccess(desired.GetNamespace(), resourceType)
 	return nil
+}
+
+// equalIgnoringLastSync reports whether a and b differ at most in the last-sync stamp. Rewriting only the
+// stamp fires a watch event that requeues the NamespaceSync, so every copy would be rewritten without end.
+func equalIgnoringLastSync(a, b client.Object) bool {
+	a, b = a.DeepCopyObject().(client.Object), b.DeepCopyObject().(client.Object)
+	for _, obj := range []client.Object{a, b} {
+		annotations := obj.GetAnnotations()
+		delete(annotations, AnnotationLastSync)
+		obj.SetAnnotations(annotations)
+	}
+	return equality.Semantic.DeepEqual(a, b)
 }
 
 // copyLabelsAndAnnotations copies labels and annotations from source to destination

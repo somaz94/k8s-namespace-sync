@@ -107,7 +107,11 @@ var _ = Describe("NamespaceSync Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, excludedNs)).To(Succeed())
 
-			By("Updating NamespaceSync with excluded namespace")
+			By("Adding a secret to the spec")
+			Expect(k8sClient.Create(ctx, &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "secret3", Namespace: "source-ns"},
+				Data:       map[string][]byte{"key": []byte("value")},
+			})).To(Succeed())
 			Eventually(func() error {
 				if err := k8sClient.Get(ctx, client.ObjectKey{
 					Namespace: "source-ns",
@@ -115,8 +119,13 @@ var _ = Describe("NamespaceSync Controller", func() {
 				}, namespaceSync); err != nil {
 					return err
 				}
-				namespaceSync.Spec.Exclude = []string{"excluded-ns"}
+				namespaceSync.Spec.SecretName = []string{"secret1", "secret2", "secret3"}
 				return k8sClient.Update(ctx, namespaceSync)
+			}, time.Second*10, time.Second).Should(Succeed())
+
+			// RequeueAfter is minutes away, so only the spec edit's generation bump can sync secret3.
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Namespace: "target-ns", Name: "secret3"}, &corev1.Secret{})
 			}, time.Second*10, time.Second).Should(Succeed())
 
 			By("Verifying resources are not synced to excluded namespace")
@@ -124,14 +133,14 @@ var _ = Describe("NamespaceSync Controller", func() {
 			excludedSecret := &corev1.Secret{}
 			err = k8sClient.Get(ctx, client.ObjectKey{
 				Namespace: "excluded-ns",
-				Name:      "test-secret",
+				Name:      "secret3",
 			}, excludedSecret)
 			Expect(errors.IsNotFound(err)).To(BeTrue(), "Secret should not exist in excluded namespace")
 
 			excludedConfigMap := &corev1.ConfigMap{}
 			err = k8sClient.Get(ctx, client.ObjectKey{
 				Namespace: "excluded-ns",
-				Name:      "test-configmap",
+				Name:      "configmap1",
 			}, excludedConfigMap)
 			Expect(errors.IsNotFound(err)).To(BeTrue(), "ConfigMap should not exist in excluded namespace")
 

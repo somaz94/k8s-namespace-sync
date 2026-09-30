@@ -466,6 +466,89 @@ func TestReconcile_UpdateExistingResources(t *testing.T) {
 	}
 }
 
+func TestReconcile_SecondPassWritesNothing(t *testing.T) {
+	scheme := newTestScheme()
+
+	sourceSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "idle-secret",
+			Namespace:   "idle-src-ns",
+			Labels:      map[string]string{"app": "demo"},
+			Annotations: map[string]string{"note": "kept"},
+		},
+		Data: map[string][]byte{"key": []byte("value")},
+	}
+	// No labels, so the desired copy holds an empty map where the stored copy holds none.
+	sourceCm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "idle-cm", Namespace: "idle-src-ns"},
+		Data:       map[string]string{"key": "value"},
+	}
+	ns := &syncv1.NamespaceSync{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "idle-test",
+			Namespace:  "idle-src-ns",
+			Finalizers: []string{finalizerName},
+		},
+		Spec: syncv1.NamespaceSyncSpec{
+			SourceNamespace:  "idle-src-ns",
+			TargetNamespaces: []string{"idle-tgt-ns"},
+			SecretName:       []string{"idle-secret"},
+			ConfigMapName:    []string{"idle-cm"},
+		},
+	}
+
+	var writes []string
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(
+			&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "idle-src-ns"}},
+			&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "idle-tgt-ns"}},
+			sourceSecret, sourceCm, ns,
+		).
+		WithStatusSubresource(ns).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Create: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+				writes = append(writes, "create "+obj.GetName())
+				return cl.Create(ctx, obj, opts...)
+			},
+			Update: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+				writes = append(writes, "update "+obj.GetName())
+				return cl.Update(ctx, obj, opts...)
+			},
+			Patch: func(ctx context.Context, cl client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				writes = append(writes, "patch "+obj.GetName())
+				return cl.Patch(ctx, obj, patch, opts...)
+			},
+			Apply: func(ctx context.Context, cl client.WithWatch, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+				writes = append(writes, "apply")
+				return cl.Apply(ctx, obj, opts...)
+			},
+			Delete: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+				writes = append(writes, "delete "+obj.GetName())
+				return cl.Delete(ctx, obj, opts...)
+			},
+		}).
+		Build()
+
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: "idle-test", Namespace: "idle-src-ns"}}
+
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("first reconcile: %v", err)
+	}
+	if len(writes) != 2 {
+		t.Fatalf("expected the first pass to create both copies, got %v", writes)
+	}
+
+	writes = nil
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("second reconcile: %v", err)
+	}
+	if len(writes) != 0 {
+		t.Errorf("expected no writes while the copies match their sources, got %v", writes)
+	}
+}
+
 func TestFindNamespaceSyncs(t *testing.T) {
 	scheme := newTestScheme()
 

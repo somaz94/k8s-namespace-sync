@@ -7,6 +7,7 @@ import (
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 )
 
 func TestValidateNamespaceSync(t *testing.T) {
@@ -414,5 +415,96 @@ func TestIsManagedCopy(t *testing.T) {
 				t.Errorf("isManagedCopy() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestEqualIgnoringLastSync(t *testing.T) {
+	base := func() *corev1.Secret {
+		return &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "obj",
+				Namespace:   "tgt",
+				Labels:      map[string]string{"app": "demo"},
+				Annotations: map[string]string{AnnotationLastSync: "2026-01-01T00:00:00Z", "note": "a"},
+			},
+			Data: map[string][]byte{"key": []byte("value")},
+		}
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(a, b *corev1.Secret)
+		want   bool
+	}{
+		{"identical", func(a, b *corev1.Secret) {}, true},
+		{"only last-sync differs", func(a, b *corev1.Secret) { b.Annotations[AnnotationLastSync] = "2026-01-01T00:00:01Z" }, true},
+		{"last-sync missing on one side", func(a, b *corev1.Secret) { delete(b.Annotations, AnnotationLastSync) }, true},
+		{"stamp only vs no annotations", func(a, b *corev1.Secret) {
+			a.Annotations = map[string]string{AnnotationLastSync: "2026-01-01T00:00:00Z"}
+			b.Annotations = nil
+		}, true},
+		{"nil vs empty labels", func(a, b *corev1.Secret) { a.Labels, b.Labels = nil, map[string]string{} }, true},
+		{"data differs", func(a, b *corev1.Secret) { b.Data["key"] = []byte("other") }, false},
+		{"label differs", func(a, b *corev1.Secret) { b.Labels["app"] = "other" }, false},
+		{"other annotation differs", func(a, b *corev1.Secret) { b.Annotations["note"] = "b" }, false},
+		{"type differs", func(a, b *corev1.Secret) { b.Type = corev1.SecretTypeTLS }, false},
+		{"stamp and data differ", func(a, b *corev1.Secret) {
+			b.Annotations[AnnotationLastSync] = "2026-01-01T00:00:01Z"
+			b.Data["key"] = []byte("other")
+		}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a, b := base(), base()
+			tt.mutate(a, b)
+			if got := equalIgnoringLastSync(a, b); got != tt.want {
+				t.Errorf("equalIgnoringLastSync() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+
+	t.Run("leaves its arguments untouched", func(t *testing.T) {
+		a, b := base(), base()
+		equalIgnoringLastSync(a, b)
+		for name, s := range map[string]*corev1.Secret{"a": a, "b": b} {
+			if _, ok := s.Annotations[AnnotationLastSync]; !ok {
+				t.Errorf("expected the last-sync annotation on %s to survive the comparison", name)
+			}
+		}
+	})
+}
+
+func TestNamespaceSyncPredicate(t *testing.T) {
+	old := &syncv1.NamespaceSync{ObjectMeta: metav1.ObjectMeta{Name: "p", Namespace: "ns", Generation: 1}}
+
+	tests := []struct {
+		name   string
+		mutate func(*syncv1.NamespaceSync)
+		want   bool
+	}{
+		{"status write", func(n *syncv1.NamespaceSync) { n.Status.SyncedNamespaces = []string{"tgt"} }, false},
+		{"finalizer added", func(n *syncv1.NamespaceSync) { n.Finalizers = []string{finalizerName} }, false},
+		{"spec edit", func(n *syncv1.NamespaceSync) { n.Generation = 2 }, true},
+		{"deletion started", func(n *syncv1.NamespaceSync) {
+			now := metav1.Now()
+			n.DeletionTimestamp, n.Generation = &now, 2
+		}, true},
+		{"annotation added", func(n *syncv1.NamespaceSync) { n.Annotations = map[string]string{"resync": "1"} }, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			updated := old.DeepCopy()
+			tt.mutate(updated)
+			if got := namespaceSyncPredicate().Update(event.UpdateEvent{ObjectOld: old, ObjectNew: updated}); got != tt.want {
+				t.Errorf("Update() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+
+	p := namespaceSyncPredicate()
+	if !p.Create(event.CreateEvent{Object: old}) || !p.Delete(event.DeleteEvent{Object: old}) {
+		t.Error("expected create and delete events to pass")
 	}
 }

@@ -368,9 +368,11 @@ Synced resources are annotated with metadata that tracks their origin and sync s
 |------------|-------------|
 | `namespacesync.nsync.dev/source-namespace` | The namespace from which the resource was synced |
 | `namespacesync.nsync.dev/source-name` | The name of the source resource |
-| `namespacesync.nsync.dev/last-sync` | Timestamp of the last sync operation (RFC3339 format) |
+| `namespacesync.nsync.dev/last-sync` | When the controller last wrote the copy (RFC3339 format); it moves only when the copy had to change |
 
 These annotations allow you to identify which resources are managed by NamespaceSync and trace them back to their source.
+
+Copies keep exactly the labels and annotations of their source. If a mutating admission policy or another controller adds labels or annotations to the copies, every sync reverts them and rewrites the copy, which can keep the controller busy; exclude the copies from such policies.
 
 <br/>
 
