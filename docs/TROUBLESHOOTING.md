@@ -145,6 +145,8 @@ kubectl get namespacesync <name> -o jsonpath='{.spec.resourceFilters}'
 
 Another NamespaceSync owns the object: it reads that object as its source, or it still syncs that copy from a different source namespace. The message names the other NamespaceSync, and the README section "Overlapping NamespaceSyncs" has the rules. To resolve it, list the namespace in `targetNamespaces` of the NamespaceSync that should own the copy, narrow the other one with `targetNamespaces` or `exclude`, or delete one of them. A change to the other NamespaceSync does not retrigger this one, so the conflict can take up to the reconcile interval to clear.
 
+When the message says the object `was not created by a NamespaceSync`, the namespace is reached only because `targetNamespaces` is empty, and it already holds a same-named object that someone created by hand. The controller does not overwrite such an object there. Delete it to let the copy take its place, or list the namespace in `targetNamespaces` to have it overwritten.
+
 ```bash
 # See which namespaces conflict and why
 kubectl get namespacesync <name> -o jsonpath='{.status.failedNamespaces}'

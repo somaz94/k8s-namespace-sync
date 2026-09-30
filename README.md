@@ -334,7 +334,8 @@ kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/m
 - Deleting a resource from the source namespace removes its synced copies from the target namespaces
 - Labels and annotations from the source resources are preserved in synced resources, except keys under `kubernetes.io/` and `kubectl.kubernetes.io/` (such as `kubectl.kubernetes.io/last-applied-configuration`), which describe the source object itself
 - When the NamespaceSync CR is deleted, all synced resources are automatically cleaned up
-- Deletion only touches copies the controller created, identified by the `namespacesync.nsync.dev/source-namespace` and `namespacesync.nsync.dev/source-name` annotations. A same-named object it never synced, such as one a resource filter excluded, is left in place. Syncing still overwrites a same-named object that no other NamespaceSync owns, which from then on counts as a synced copy
+- Deletion only touches copies the controller created, identified by the `namespacesync.nsync.dev/source-namespace` and `namespacesync.nsync.dev/source-name` annotations. A same-named object it never synced, such as one a resource filter excluded, is left in place
+- A same-named object without those annotations is overwritten only in a namespace listed in `targetNamespaces`, and only if no other NamespaceSync reads it as its source; from then on it counts as a synced copy. In a namespace reached because `targetNamespaces` is empty, it is left alone and reported as a sync conflict
 - Deleting a NamespaceSync keeps a copy that another NamespaceSync still syncs from the same source into that namespace, and an object another NamespaceSync reads as its source
 - NamespaceSyncs that sync the same name into the same namespace do not overwrite each other; see [Overlapping NamespaceSyncs](#overlapping-namespacesyncs)
 - `spec.sourceNamespace` cannot be changed after creation. To sync from another namespace, delete the NamespaceSync, whose finalizer removes the old copies, and create a new one
@@ -351,7 +352,7 @@ When several NamespaceSyncs sync the same name into the same namespace:
 - An object created by hand that another NamespaceSync reads as its source is never overwritten
 - When two NamespaceSyncs both list the namespace, the copy written first stays
 - A skipped object is listed in `status.failedNamespaces` with a `SyncConflict` event, and the other resources in that namespace still sync. A copy whose source no NamespaceSync syncs any more is taken over
-- The protection lasts only while the other NamespaceSync exists, so while it is deleted and recreated, a NamespaceSync with an empty `targetNamespaces` can overwrite its source
+- A NamespaceSync with an empty `targetNamespaces` never overwrites an object created by hand, whether or not another NamespaceSync uses it, so deleting and recreating a NamespaceSync does not expose its hand-made source. A copy is protected only while the NamespaceSync that syncs it exists
 - One NamespaceSync's spec can block another's writes, so give NamespaceSync edit rights only to people trusted with every namespace it can reach
 
 <br/>

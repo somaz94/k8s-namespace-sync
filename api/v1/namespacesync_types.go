@@ -50,7 +50,8 @@ type NamespaceSyncStatus struct {
 	SyncedNamespaces []string `json:"syncedNamespaces,omitempty"`
 
 	// FailedNamespaces maps each target namespace that failed to sync to its error message.
-	// A "sync conflict" message means another NamespaceSync owns the object; the namespace's other resources still sync.
+	// A "sync conflict" message means another NamespaceSync owns the object, or, in a namespace reached because
+	// targetNamespaces is empty, that someone created it by hand; the namespace's other resources still sync.
 	// It is empty while the spec is invalid; the Ready condition carries that error.
 	// +optional
 	FailedNamespaces map[string]string `json:"failedNamespaces,omitempty"`

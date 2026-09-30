@@ -11,7 +11,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// errSyncConflict marks a write the controller skipped because another NamespaceSync owns the object.
+// errSyncConflict marks a write the controller skipped because another NamespaceSync, or the person who
+// created the object, owns it.
 var errSyncConflict = errors.New("sync conflict")
 
 // listPeers returns every NamespaceSync other than self that is not being deleted. A peer with an
@@ -88,9 +89,11 @@ func (r *NamespaceSyncReconciler) sourceConflict(peers []syncv1.NamespaceSync, r
 }
 
 // copyConflictGuard decides whether an existing object may be overwritten. It never overwrites a peer's
-// source unless the object is already this sync's own copy, which is how explicit targets chain. A copy a
-// live peer syncs from a different source stays with that peer, unless this sync lists the namespace in
-// targetNamespaces and the peer reaches it only by default. An orphaned copy is taken over.
+// source unless the object is already this sync's own copy, which is how explicit targets chain. An object
+// no NamespaceSync created is overwritten only in an explicit target, so a peer's hand-made source stays
+// safe while that peer is deleted and recreated. A copy a live peer syncs from a different source stays
+// with that peer, unless this sync lists the namespace in targetNamespaces and the peer reaches it only by
+// default. An orphaned copy is taken over.
 func (r *NamespaceSyncReconciler) copyConflictGuard(peers []syncv1.NamespaceSync, resourceType, sourceNamespace string, explicit bool) func(client.Object) error {
 	return func(existing client.Object) error {
 		namespace, name := existing.GetNamespace(), existing.GetName()
@@ -101,7 +104,11 @@ func (r *NamespaceSyncReconciler) copyConflictGuard(peers []syncv1.NamespaceSync
 			}
 		}
 		from := existing.GetAnnotations()[AnnotationSourceNamespace]
-		if from == "" || from == sourceNamespace {
+		switch {
+		case from == "" && !explicit:
+			return fmt.Errorf("%w: %s %s/%s was not created by a NamespaceSync; list %s in targetNamespaces to overwrite it",
+				errSyncConflict, resourceType, namespace, name, namespace)
+		case from == "" || from == sourceNamespace:
 			return nil
 		}
 		owner := r.copyOwner(peers, resourceType, from, namespace, name)

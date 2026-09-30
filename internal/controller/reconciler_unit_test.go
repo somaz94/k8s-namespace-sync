@@ -1685,31 +1685,62 @@ func TestReconcile_LeavesCopyAnotherSyncOwns(t *testing.T) {
 }
 
 func TestReconcile_TakesOverOrphanedCopy(t *testing.T) {
+	for _, targets := range [][]string{{"tgt"}, nil} {
+		t.Run(fmt.Sprintf("targetNamespaces=%v", targets), func(t *testing.T) {
+			scheme := newTestScheme()
+
+			syncA := newSecretSync("sync-a", "a-src", targets, "shared")
+			// No NamespaceSync syncs from gone-src any more.
+			orphan := &corev1.Secret{
+				ObjectMeta: managedCopyMeta("shared", "tgt", "gone-src"),
+				Data:       map[string][]byte{"key": []byte("stale")},
+			}
+
+			c := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(namespaceObjects("a-src", "tgt")...).
+				WithObjects(sharedSecret("a-src", fromA), orphan, syncA).
+				WithStatusSubresource(syncA).
+				Build()
+			r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+			reconcileSync(t, r, syncA)
+
+			s := getSharedSecret(t, c, "tgt")
+			if string(s.Data["key"]) != fromA || s.Annotations[AnnotationSourceNamespace] != "a-src" {
+				t.Errorf("expected the orphaned copy to be taken over, got data %q from %q", s.Data["key"], s.Annotations[AnnotationSourceNamespace])
+			}
+			if failed := failedNamespaces(t, c, syncA); len(failed) != 0 {
+				t.Errorf("expected no conflicts, got %v", failed)
+			}
+		})
+	}
+}
+
+func TestReconcile_DefaultTargetKeepsHandMadeObject(t *testing.T) {
 	scheme := newTestScheme()
 
-	syncA := newSecretSync("sync-a", "a-src", []string{"tgt"}, "shared")
-	// No NamespaceSync syncs from gone-src any more.
-	orphan := &corev1.Secret{
-		ObjectMeta: managedCopyMeta("shared", "tgt", "gone-src"),
-		Data:       map[string][]byte{"key": []byte("stale")},
-	}
+	// b-src holds the hand-made source of a NamespaceSync that is being recreated, so no peer claims it now.
+	syncA := newSecretSync("sync-a", "a-src", nil, "shared")
 
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithObjects(namespaceObjects("a-src", "tgt")...).
-		WithObjects(sharedSecret("a-src", fromA), orphan, syncA).
+		WithObjects(namespaceObjects("a-src", "b-src", "plain-tgt")...).
+		WithObjects(sharedSecret("a-src", fromA), sharedSecret("b-src", fromB), syncA).
 		WithStatusSubresource(syncA).
 		Build()
 	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
 
 	reconcileSync(t, r, syncA)
 
-	s := getSharedSecret(t, c, "tgt")
-	if string(s.Data["key"]) != fromA || s.Annotations[AnnotationSourceNamespace] != "a-src" {
-		t.Errorf("expected the orphaned copy to be taken over, got data %q from %q", s.Data["key"], s.Annotations[AnnotationSourceNamespace])
+	if got := string(getSharedSecret(t, c, "b-src").Data["key"]); got != fromB {
+		t.Errorf("expected the hand-made object to keep its data, got %q", got)
 	}
-	if failed := failedNamespaces(t, c, syncA); len(failed) != 0 {
-		t.Errorf("expected no conflicts, got %v", failed)
+	if got := string(getSharedSecret(t, c, "plain-tgt").Data["key"]); got != fromA {
+		t.Errorf("expected a namespace without the object to be synced, got %q", got)
+	}
+	if msg := failedNamespaces(t, c, syncA)["b-src"]; !strings.Contains(msg, "secret b-src/shared was not created by a NamespaceSync") {
+		t.Errorf("expected b-src to be reported as a conflict, got %q", msg)
 	}
 }
 
