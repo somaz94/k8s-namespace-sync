@@ -61,7 +61,8 @@ spec:
             description: NamespaceSyncSpec defines the desired state of NamespaceSync
             properties:
               configMapName:
-                description: ConfigMapName is the name of the ConfigMap to sync
+                description: ConfigMapName lists the ConfigMaps to sync from the source
+                  namespace
                 items:
                   type: string
                 type: array
@@ -106,7 +107,8 @@ spec:
                     type: object
                 type: object
               secretName:
-                description: SecretName is the name of the Secret to sync
+                description: SecretName lists the Secrets to sync from the source
+                  namespace
                 items:
                   type: string
                 type: array

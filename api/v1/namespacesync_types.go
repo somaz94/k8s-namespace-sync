@@ -18,11 +18,11 @@ type NamespaceSyncSpec struct {
 	// +optional
 	TargetNamespaces []string `json:"targetNamespaces,omitempty"`
 
-	// ConfigMapName is the name of the ConfigMap to sync
+	// ConfigMapName lists the ConfigMaps to sync from the source namespace
 	// +optional
 	ConfigMapName []string `json:"configMapName,omitempty"`
 
-	// SecretName is the name of the Secret to sync
+	// SecretName lists the Secrets to sync from the source namespace
 	// +optional
 	SecretName []string `json:"secretName,omitempty"`
 
