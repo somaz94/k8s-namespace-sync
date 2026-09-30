@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.6.0](https://github.com/somaz94/k8s-namespace-sync/compare/v0.5.0...v0.6.0) (2026-09-30)
+
+### Features
+
+- **helm:** let the CRD cleanup Job take a pull policy and resources ([fe3da42](https://github.com/somaz94/k8s-namespace-sync/commit/fe3da4249b404c5da36d84443b7890427d71b54d))
+- count sync conflicts in namespacesync_sync_conflict_total instead of failures ([8f24185](https://github.com/somaz94/k8s-namespace-sync/commit/8f24185a1e061fa9dae2f0b2a9161d02392a0299))
+- keep Ready True with reason SyncConflict when conflicts are the only problem ([fc1df25](https://github.com/somaz94/k8s-namespace-sync/commit/fc1df25025cc36d587dc06958aed9a35f4704a21))
+- leave hand-made objects alone in namespaces reached by default ([07563c3](https://github.com/somaz94/k8s-namespace-sync/commit/07563c323008f6642fc994061b9ceaeda955372c))
+
+### Bug Fixes
+
+- name hand-made owners in conflict messages and count conflicts apart in Ready ([ab0e7d7](https://github.com/somaz94/k8s-namespace-sync/commit/ab0e7d7c1617402d6b32ba8d433f7462a19d9205))
+- **helm:** keep the helm test retry well inside its timeout ([409aa5d](https://github.com/somaz94/k8s-namespace-sync/commit/409aa5db9aff5fab06bf8c8e57242a020466cf6b))
+- **helm:** retry the helm test connection check ([f03a19a](https://github.com/somaz94/k8s-namespace-sync/commit/f03a19a867015fe441b233ad67eca5c0f5530941))
+- stop rewriting copies whose labels a mutating admission re-adds ([e9b0f72](https://github.com/somaz94/k8s-namespace-sync/commit/e9b0f72bbd46e3b65a98f500ee9935aab64e2e40))
+
+### Code Refactoring
+
+- clone annotations in keepLastSync and log no-op updates at debug level ([3bce519](https://github.com/somaz94/k8s-namespace-sync/commit/3bce519d91091ac3d43d2c4c3a0166d4178c22aa))
+
+### Documentation
+
+- cover a ResourceQuota blocking the CRD cleanup hook ([d923b1f](https://github.com/somaz94/k8s-namespace-sync/commit/d923b1f133da06a24b10bede49e57c25c456745b))
+
+### Tests
+
+- settle both stamps before the forced resync and wait for the webhook server ([4e8eaec](https://github.com/somaz94/k8s-namespace-sync/commit/4e8eaec3e4f0d22a12948d77a4d253242242c029))
+- fix racy grep checks in test-integration.sh ([4865e69](https://github.com/somaz94/k8s-namespace-sync/commit/4865e69265127f4f3b80a0ea1ac0caacb6372cbd))
+
+### Chores
+
+- **release:** bump version to v0.6.0 ([297c6eb](https://github.com/somaz94/k8s-namespace-sync/commit/297c6eb4c45194412dd8a9b538dee7e7a6fcdba2))
+
+### Contributors
+
+- somaz
+
+<br/>
+
 ## [v0.5.0](https://github.com/somaz94/k8s-namespace-sync/compare/v0.4.2...v0.5.0) (2026-09-30)
 
 ### Features
