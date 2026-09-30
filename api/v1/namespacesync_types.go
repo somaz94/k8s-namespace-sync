@@ -57,7 +57,7 @@ type NamespaceSyncStatus struct {
 	FailedNamespaces map[string]string `json:"failedNamespaces,omitempty"`
 
 	// Conditions represent the latest available observations of an object's state.
-	// The Ready condition's reason is SyncComplete, PartialSync, SyncFailed or InvalidSpec.
+	// The Ready condition's reason is SyncComplete, SyncConflict, PartialSync, SyncFailed or InvalidSpec.
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge

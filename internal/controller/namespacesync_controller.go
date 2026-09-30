@@ -166,15 +166,15 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				"Skipped objects another NamespaceSync owns in %d namespaces (%s); see status.failedNamespaces",
 				len(conflicted), strings.Join(conflicted[:min(len(conflicted), 5)], ", "))
 		}
-		if len(failedNamespaces) > 0 {
-			r.Recorder.Eventf(namespacesync, corev1.EventTypeWarning, "SyncFailed", "Failed to sync to %d namespaces", len(failedNamespaces))
+		if failed := len(failedNamespaces) - len(conflicted); failed > 0 {
+			r.Recorder.Eventf(namespacesync, corev1.EventTypeWarning, "SyncFailed", "Failed to sync to %d namespaces", failed)
 		}
 		if len(syncedNamespaces) > 0 {
 			r.Recorder.Eventf(namespacesync, corev1.EventTypeNormal, "SyncComplete", "Successfully synced resources to %d namespaces", len(syncedNamespaces))
 		}
 	}
 
-	if err := r.updateStatus(ctx, namespacesync, syncedNamespaces, failedNamespaces); err != nil {
+	if err := r.updateStatus(ctx, namespacesync, syncedNamespaces, failedNamespaces, conflicted); err != nil {
 		log.Error(err, "Failed to update status")
 		return ctrl.Result{}, err
 	}

@@ -138,7 +138,7 @@ spec:
               conditions:
                 description: |-
                   Conditions represent the latest available observations of an object's state.
-                  The Ready condition's reason is SyncComplete, PartialSync, SyncFailed or InvalidSpec.
+                  The Ready condition's reason is SyncComplete, SyncConflict, PartialSync, SyncFailed or InvalidSpec.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.

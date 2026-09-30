@@ -364,9 +364,9 @@ The controller emits Kubernetes events on NamespaceSync resources to provide vis
 | Event Type | Reason | Description |
 |------------|--------|-------------|
 | Normal | `SyncComplete` | Emitted after resources are successfully synced to target namespaces |
-| Warning | `SyncFailed` | Emitted when sync fails for one or more target namespaces |
+| Warning | `SyncFailed` | Emitted when sync fails for one or more target namespaces for a reason other than a sync conflict |
 | Warning | `ValidationFailed` | Emitted when the NamespaceSync spec fails validation |
-| Warning | `SyncConflict` | Emitted when a sync skips an object another NamespaceSync owns (see Sync Behavior) |
+| Warning | `SyncConflict` | Emitted when a sync skips an object that another NamespaceSync owns, or that someone created by hand in a namespace reached by default (see [Overlapping NamespaceSyncs](#overlapping-namespacesyncs)) |
 | Normal | `CleanupComplete` | Emitted after synced resources are successfully cleaned up during deletion |
 | Warning | `CleanupFailed` | Emitted when cleanup of synced resources fails during deletion |
 
@@ -402,7 +402,8 @@ The controller sets a `Ready` condition on each NamespaceSync resource to reflec
 | Reason | Status | Description |
 |--------|--------|-------------|
 | `SyncComplete` | `True` | All target namespaces were synced successfully |
-| `PartialSync` | `True` | Some target namespaces were synced, but others failed |
+| `SyncConflict` | `True` | Every namespace that did not sync only skipped objects another owner holds (see [Overlapping NamespaceSyncs](#overlapping-namespacesyncs)); nothing failed |
+| `PartialSync` | `True` | Some target namespaces were synced, but others failed for a reason other than a sync conflict |
 | `SyncFailed` | `False` | All target namespaces failed to sync |
 | `InvalidSpec` | `False` | The spec failed validation; the message holds the error |
 

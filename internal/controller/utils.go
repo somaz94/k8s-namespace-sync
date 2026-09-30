@@ -26,8 +26,9 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-// updateStatus updates the status of the NamespaceSync resource
-func (r *NamespaceSyncReconciler) updateStatus(ctx context.Context, namespaceSync *syncv1.NamespaceSync, syncedNamespaces []string, failedNamespaces map[string]string) error {
+// updateStatus updates the status of the NamespaceSync resource. conflicted lists the failedNamespaces
+// entries that hold nothing but sync conflicts.
+func (r *NamespaceSyncReconciler) updateStatus(ctx context.Context, namespaceSync *syncv1.NamespaceSync, syncedNamespaces []string, failedNamespaces map[string]string, conflicted []string) error {
 	log := log.FromContext(ctx)
 
 	if namespaceSync.DeletionTimestamp != nil {
@@ -56,6 +57,17 @@ func (r *NamespaceSyncReconciler) updateStatus(ctx context.Context, namespaceSyn
 				LastTransitionTime: metav1.NewTime(time.Now()),
 				Reason:             "SyncComplete",
 				Message:            fmt.Sprintf("Successfully synced to %d namespaces", len(syncedNamespaces)),
+			}
+		case len(failedNamespaces) > 0 && len(conflicted) == len(failedNamespaces):
+			// Skipping an object someone else owns is the conflict rules at work, so a GitOps health check keyed
+			// on Ready should not see it as a failure.
+			readyCondition = metav1.Condition{
+				Type:               "Ready",
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: latest.Generation,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Reason:             "SyncConflict",
+				Message:            fmt.Sprintf("Synced to %d namespaces, skipped conflicting objects in %d namespaces", len(syncedNamespaces), len(conflicted)),
 			}
 		case len(failedNamespaces) > 0 && len(syncedNamespaces) > 0:
 			// Ready stays True on partial failure; Reason PartialSync marks it.

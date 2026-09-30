@@ -12,6 +12,7 @@ import (
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -773,7 +774,7 @@ func TestUpdateStatus_DeletionTimestamp(t *testing.T) {
 
 	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
 
-	err := r.updateStatus(context.Background(), ns, []string{"ns1"}, nil)
+	err := r.updateStatus(context.Background(), ns, []string{"ns1"}, nil, nil)
 	if err != nil {
 		t.Errorf("expected no error when deletion timestamp is set, got %v", err)
 	}
@@ -897,7 +898,7 @@ func TestUpdateStatus_AllSynced(t *testing.T) {
 
 	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
 
-	err := r.updateStatus(context.Background(), ns, []string{"ns1", "ns2", "ns3"}, nil)
+	err := r.updateStatus(context.Background(), ns, []string{"ns1", "ns2", "ns3"}, nil, nil)
 	if err != nil {
 		t.Fatalf("updateStatus error: %v", err)
 	}
@@ -951,7 +952,7 @@ func TestUpdateStatus_PartialSync(t *testing.T) {
 	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
 
 	failedNs := map[string]string{"ns2": "connection refused"}
-	err := r.updateStatus(context.Background(), ns, []string{"ns1"}, failedNs)
+	err := r.updateStatus(context.Background(), ns, []string{"ns1"}, failedNs, nil)
 	if err != nil {
 		t.Fatalf("updateStatus error: %v", err)
 	}
@@ -981,6 +982,45 @@ func TestUpdateStatus_PartialSync(t *testing.T) {
 	}
 }
 
+func TestUpdateStatus_Conflicts(t *testing.T) {
+	const conflict, failure = "sync conflict: secret ns2/s is the source of NamespaceSync ns2/other", "connection refused"
+	tests := []struct {
+		name       string
+		synced     []string
+		failed     map[string]string
+		conflicted []string
+		wantStatus metav1.ConditionStatus
+		wantReason string
+	}{
+		{"conflicts next to synced namespaces", []string{"ns1"}, map[string]string{"ns2": conflict}, []string{"ns2"}, metav1.ConditionTrue, "SyncConflict"},
+		{"conflicts only", nil, map[string]string{"ns2": conflict}, []string{"ns2"}, metav1.ConditionTrue, "SyncConflict"},
+		{"conflict and failure", []string{"ns1"}, map[string]string{"ns2": conflict, "ns3": failure}, []string{"ns2"}, metav1.ConditionTrue, "PartialSync"},
+		{"conflict and failure, nothing synced", nil, map[string]string{"ns2": conflict, "ns3": failure}, []string{"ns2"}, metav1.ConditionFalse, "SyncFailed"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scheme := newTestScheme()
+			ns := newSecretSync("status-conflict", "status-ns", nil, "s")
+			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(ns).WithStatusSubresource(ns).Build()
+			r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+			if err := r.updateStatus(context.Background(), ns, tt.synced, tt.failed, tt.conflicted); err != nil {
+				t.Fatalf("updateStatus error: %v", err)
+			}
+
+			var updated syncv1.NamespaceSync
+			if err := c.Get(context.Background(), client.ObjectKeyFromObject(ns), &updated); err != nil {
+				t.Fatalf("get NamespaceSync: %v", err)
+			}
+			cond := meta.FindStatusCondition(updated.Status.Conditions, conditionTypeReady)
+			if cond == nil || cond.Status != tt.wantStatus || cond.Reason != tt.wantReason {
+				t.Errorf("expected Ready %s/%s, got %+v", tt.wantStatus, tt.wantReason, cond)
+			}
+		})
+	}
+}
+
 func TestUpdateStatus_AllFailed(t *testing.T) {
 	scheme := newTestScheme()
 
@@ -1005,7 +1045,7 @@ func TestUpdateStatus_AllFailed(t *testing.T) {
 	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
 
 	failedNs := map[string]string{"ns1": "error1", "ns2": "error2"}
-	err := r.updateStatus(context.Background(), ns, []string{}, failedNs)
+	err := r.updateStatus(context.Background(), ns, []string{}, failedNs, nil)
 	if err != nil {
 		t.Fatalf("updateStatus error: %v", err)
 	}
@@ -1058,7 +1098,7 @@ func TestUpdateStatus_NoNamespaces(t *testing.T) {
 
 	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
 
-	err := r.updateStatus(context.Background(), ns, []string{}, nil)
+	err := r.updateStatus(context.Background(), ns, []string{}, nil, nil)
 	if err != nil {
 		t.Fatalf("updateStatus error: %v", err)
 	}
@@ -1651,8 +1691,15 @@ func TestReconcile_LeavesAnotherSyncsSourceObject(t *testing.T) {
 	if msg := failedNamespaces(t, c, syncA)["b-src"]; !strings.Contains(msg, "is the source of NamespaceSync b-src/sync-b") {
 		t.Errorf("expected b-src to be reported as a conflict, got %q", msg)
 	}
-	if !slices.Contains(rec.events, "SyncConflict") {
-		t.Errorf("expected a SyncConflict event, got %v", rec.events)
+	if !slices.Contains(rec.events, "SyncConflict") || slices.Contains(rec.events, "SyncFailed") {
+		t.Errorf("expected a SyncConflict event and no SyncFailed event, got %v", rec.events)
+	}
+	var got syncv1.NamespaceSync
+	if err := c.Get(context.Background(), client.ObjectKeyFromObject(syncA), &got); err != nil {
+		t.Fatalf("get sync-a: %v", err)
+	}
+	if cond := meta.FindStatusCondition(got.Status.Conditions, conditionTypeReady); cond == nil || cond.Reason != "SyncConflict" {
+		t.Errorf("expected Ready reason SyncConflict, got %+v", cond)
 	}
 }
 
