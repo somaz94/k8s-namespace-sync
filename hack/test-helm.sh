@@ -1,5 +1,7 @@
 #!/bin/bash
 set -euo pipefail
+# Checks pipe into `grep >/dev/null`, not `grep -q`: -q exits on the first match, and under pipefail the
+# writer's SIGPIPE then fails the whole check.
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -112,7 +114,7 @@ fi
 
 log_info "Waiting for controller pod to exist..."
 for i in $(seq 1 30); do
-  if kubectl get pods -n "${NAMESPACE}" -l control-plane=controller-manager -o name 2>/dev/null | grep -q .; then
+  if kubectl get pods -n "${NAMESPACE}" -l control-plane=controller-manager -o name 2>/dev/null | grep . >/dev/null; then
     break
   fi
   sleep 2
@@ -131,13 +133,13 @@ else
   log_fail "CRD not found"
 fi
 
-if kubectl get clusterrole -l app.kubernetes.io/name=k8s-namespace-sync 2>/dev/null | grep -q .; then
+if kubectl get clusterrole -l app.kubernetes.io/name=k8s-namespace-sync 2>/dev/null | grep . >/dev/null; then
   log_pass "ClusterRole created"
 else
   log_fail "ClusterRole not found"
 fi
 
-if kubectl get svc -n "${NAMESPACE}" 2>/dev/null | grep -q metrics; then
+if kubectl get svc -n "${NAMESPACE}" 2>/dev/null | grep metrics >/dev/null; then
   log_pass "Metrics service created"
 else
   log_fail "Metrics service not found"
@@ -312,7 +314,7 @@ else
   log_fail "Events: No events recorded"
 fi
 
-if kubectl get events --field-selector involvedObject.name=test-events --no-headers 2>/dev/null | grep -q "SyncComplete"; then
+if kubectl get events --field-selector involvedObject.name=test-events --no-headers 2>/dev/null | grep "SyncComplete" >/dev/null; then
   log_pass "Events: SyncComplete event found"
 else
   log_fail "Events: SyncComplete event not found"
@@ -351,7 +353,7 @@ else
 fi
 
 MESSAGE=$(kubectl get namespacesync test-status -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null)
-if echo "$MESSAGE" | grep -q "namespace"; then
+if echo "$MESSAGE" | grep "namespace" >/dev/null; then
   log_pass "Status: Message contains namespace info: ${MESSAGE}"
 else
   log_fail "Status: Message missing namespace info: ${MESSAGE}"
@@ -398,6 +400,16 @@ fi
 
 kubectl delete namespacesync test-metadata --timeout=30s 2>/dev/null || true
 sleep 2
+
+log_info "[Test] Uninstall with hooks"
+# A NamespaceSync with a finalizer makes the pre-delete hook wait for the CRD to finish deleting.
+kubectl apply -f "${SAMPLES_DIR}/sync_v1_namespacesync.yaml" >/dev/null 2>&1 || true
+if helm uninstall "${RELEASE_NAME}" --timeout 120s >/dev/null 2>&1 \
+  && ! kubectl get crd namespacesyncs.sync.nsync.dev >/dev/null 2>&1; then
+  log_pass "Uninstall: pre-delete hook removed the CRD"
+else
+  log_fail "Uninstall: pre-delete hook failed or the CRD is still present"
+fi
 
 echo ""
 log_info "========================================="
