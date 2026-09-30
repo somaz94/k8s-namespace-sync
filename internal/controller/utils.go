@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
+	"slices"
 	"time"
 
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
@@ -101,5 +103,27 @@ func validateNamespaceSync(namespaceSync *syncv1.NamespaceSync) error {
 		return errors.New("at least one secret or configmap must be specified")
 	}
 
+	if filters := namespaceSync.Spec.ResourceFilters; filters != nil {
+		if err := validateResourceFilter("secrets", filters.Secrets); err != nil {
+			return err
+		}
+		if err := validateResourceFilter("configMaps", filters.ConfigMaps); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateResourceFilter rejects glob patterns path.Match cannot parse, which would otherwise never match.
+func validateResourceFilter(field string, filter *syncv1.ResourceFilter) error {
+	if filter == nil {
+		return nil
+	}
+	for _, pattern := range slices.Concat(filter.Include, filter.Exclude) {
+		if _, err := path.Match(pattern, ""); err != nil {
+			return fmt.Errorf("invalid pattern %q in resourceFilters.%s: %w", pattern, field, err)
+		}
+	}
 	return nil
 }

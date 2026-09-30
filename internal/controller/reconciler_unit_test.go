@@ -2,7 +2,9 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
@@ -17,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // Shared test fixtures for the controller package tests.
@@ -1269,6 +1272,95 @@ func counterValue(t *testing.T, namespace, resourceType string) float64 {
 		t.Fatalf("read counter: %v", err)
 	}
 	return m.GetCounter().GetValue()
+}
+
+func TestReconcile_DeletionWithMalformedFilter(t *testing.T) {
+	scheme := newTestScheme()
+	now := metav1.Now()
+
+	syncedSecret := &corev1.Secret{ObjectMeta: managedCopyMeta("bf-secret", "bf-tgt-ns", "bf-src-ns")}
+	ns := &syncv1.NamespaceSync{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "bad-filter",
+			Namespace:         "bf-src-ns",
+			DeletionTimestamp: &now,
+			Finalizers:        []string{finalizerName},
+		},
+		Spec: syncv1.NamespaceSyncSpec{
+			SourceNamespace:  "bf-src-ns",
+			TargetNamespaces: []string{"bf-tgt-ns"},
+			SecretName:       []string{"bf-secret"},
+			ResourceFilters: &syncv1.ResourceFilters{
+				Secrets: &syncv1.ResourceFilter{Exclude: []string{"["}},
+			},
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(
+			&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "bf-src-ns"}},
+			&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "bf-tgt-ns"}},
+			syncedSecret, ns,
+		).
+		WithStatusSubresource(ns).
+		Build()
+
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: "bad-filter", Namespace: "bf-src-ns"},
+	}); err != nil {
+		t.Fatalf("expected deletion to proceed despite the malformed filter, got %v", err)
+	}
+
+	var s corev1.Secret
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "bf-secret", Namespace: "bf-tgt-ns"}, &s); !apierrors.IsNotFound(err) {
+		t.Errorf("expected the synced copy to be cleaned up, got %v", err)
+	}
+	var got syncv1.NamespaceSync
+	err := c.Get(context.Background(), types.NamespacedName{Name: "bad-filter", Namespace: "bf-src-ns"}, &got)
+	if err == nil && len(got.Finalizers) > 0 {
+		t.Errorf("expected the finalizer to be removed, got %v", got.Finalizers)
+	}
+}
+
+func TestReconcile_MalformedFilterIsTerminal(t *testing.T) {
+	scheme := newTestScheme()
+
+	ns := &syncv1.NamespaceSync{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "bad-glob",
+			Namespace:  "bg-src-ns",
+			Finalizers: []string{finalizerName},
+		},
+		Spec: syncv1.NamespaceSyncSpec{
+			SourceNamespace: "bg-src-ns",
+			SecretName:      []string{"s"},
+			ResourceFilters: &syncv1.ResourceFilters{
+				ConfigMaps: &syncv1.ResourceFilter{Include: []string{"app-*[0-9"}},
+			},
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ns).
+		WithStatusSubresource(ns).
+		Build()
+
+	rec := &fakeRecorder{}
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme, Recorder: rec}
+
+	_, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: "bad-glob", Namespace: "bg-src-ns"},
+	})
+	if !errors.Is(err, reconcile.TerminalError(nil)) {
+		t.Errorf("expected a terminal error, got %v", err)
+	}
+	if !slices.Contains(rec.events, "ValidationFailed") {
+		t.Errorf("expected a ValidationFailed event, got %v", rec.events)
+	}
 }
 
 func TestDeleteManagedCopy_StaleResourceVersion(t *testing.T) {

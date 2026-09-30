@@ -2,7 +2,7 @@ package controller
 
 import (
 	"context"
-	"path/filepath"
+	"path"
 
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -14,10 +14,10 @@ func (r *NamespaceSyncReconciler) shouldSyncResource(name string, filter *syncv1
 		return true
 	}
 
-	// Check exclude patterns first
+	// Check exclude patterns first; a malformed one excludes, so a typo never leaks a resource.
 	for _, pattern := range filter.Exclude {
-		matched, err := filepath.Match(pattern, name)
-		if err == nil && matched {
+		matched, err := path.Match(pattern, name)
+		if err != nil || matched {
 			return false
 		}
 	}
@@ -27,7 +27,7 @@ func (r *NamespaceSyncReconciler) shouldSyncResource(name string, filter *syncv1
 	}
 
 	for _, pattern := range filter.Include {
-		matched, err := filepath.Match(pattern, name)
+		matched, err := path.Match(pattern, name)
 		if err == nil && matched {
 			return true
 		}

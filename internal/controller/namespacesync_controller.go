@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // +kubebuilder:rbac:groups=sync.nsync.dev,resources=namespacesyncs,verbs=get;list;watch;create;update;patch;delete
@@ -73,6 +74,10 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
+	if !namespacesync.DeletionTimestamp.IsZero() {
+		return r.handleDeletionAndStatus(ctx, namespacesync)
+	}
+
 	if err := validateNamespaceSync(namespacesync); err != nil {
 		log.Error(err, "Invalid NamespaceSync resource")
 		if r.Recorder != nil {
@@ -82,11 +87,8 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if updateErr := r.updateStatus(ctx, namespacesync, nil, failedNamespaces); updateErr != nil {
 			log.Error(updateErr, "Failed to update status after validation error")
 		}
-		return ctrl.Result{}, err
-	}
-
-	if !namespacesync.DeletionTimestamp.IsZero() {
-		return r.handleDeletionAndStatus(ctx, namespacesync)
+		// Retrying cannot fix a bad spec; an edit to it triggers the next reconcile.
+		return ctrl.Result{}, reconcile.TerminalError(err)
 	}
 
 	if !controllerutil.ContainsFinalizer(namespacesync, finalizerName) {

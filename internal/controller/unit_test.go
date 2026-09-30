@@ -76,6 +76,71 @@ func TestValidateNamespaceSync(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "valid filter patterns",
+			sync: &syncv1.NamespaceSync{
+				Spec: syncv1.NamespaceSyncSpec{
+					SourceNamespace: "source-ns",
+					SecretName:      []string{"my-secret"},
+					ResourceFilters: &syncv1.ResourceFilters{
+						Secrets:    &syncv1.ResourceFilter{Include: []string{"my-*"}, Exclude: []string{"*-bak"}},
+						ConfigMaps: &syncv1.ResourceFilter{Exclude: []string{"[a-c]*"}},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty resourceFilters",
+			sync: &syncv1.NamespaceSync{
+				Spec: syncv1.NamespaceSyncSpec{
+					SourceNamespace: "source-ns",
+					SecretName:      []string{"my-secret"},
+					ResourceFilters: &syncv1.ResourceFilters{},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "malformed secrets include pattern",
+			sync: &syncv1.NamespaceSync{
+				Spec: syncv1.NamespaceSyncSpec{
+					SourceNamespace: "source-ns",
+					SecretName:      []string{"my-secret"},
+					ResourceFilters: &syncv1.ResourceFilters{
+						Secrets: &syncv1.ResourceFilter{Include: []string{"[invalid"}},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "malformed configMaps exclude pattern",
+			sync: &syncv1.NamespaceSync{
+				Spec: syncv1.NamespaceSyncSpec{
+					SourceNamespace: "source-ns",
+					ConfigMapName:   []string{"my-configmap"},
+					ResourceFilters: &syncv1.ResourceFilters{
+						ConfigMaps: &syncv1.ResourceFilter{Exclude: []string{"app-[z-"}},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			// path.Match stops at the first chunk that fails; the error here is after the '*'.
+			name: "malformed chunk after a star",
+			sync: &syncv1.NamespaceSync{
+				Spec: syncv1.NamespaceSyncSpec{
+					SourceNamespace: "source-ns",
+					SecretName:      []string{"my-secret"},
+					ResourceFilters: &syncv1.ResourceFilters{
+						Secrets: &syncv1.ResourceFilter{Include: []string{"app-*[0-9"}, Exclude: []string{"*a*\\"}},
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -130,7 +195,7 @@ func TestShouldSyncResource(t *testing.T) {
 			Include: []string{"*-prod"},
 			Exclude: []string{"backup-*"},
 		}, false},
-		{"invalid exclude pattern ignored", "test", &syncv1.ResourceFilter{Exclude: []string{"[invalid"}}, true},
+		{"invalid exclude pattern excludes", "test", &syncv1.ResourceFilter{Exclude: []string{"[invalid"}}, false},
 		{"invalid include pattern ignored", "test", &syncv1.ResourceFilter{Include: []string{"[invalid"}}, false},
 		{"exact match include", "my-config", &syncv1.ResourceFilter{Include: []string{"my-config"}}, true},
 		{"exact match exclude", "my-config", &syncv1.ResourceFilter{Exclude: []string{"my-config"}}, false},
