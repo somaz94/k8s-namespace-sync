@@ -1,4 +1,6 @@
 {{- if and .Values.crds.create .Values.crds.remove }}
+{{- /* The fallbacks cover helm upgrade --reuse-values from a chart that predates crds.cleanupImage. */}}
+{{- $cleanupImage := .Values.crds.cleanupImage | default dict }}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -21,7 +23,9 @@ metadata:
 rules:
   - apiGroups: ["apiextensions.k8s.io"]
     resources: ["customresourcedefinitions"]
-    verbs: ["get", "delete"]
+    resourceNames: ["namespacesyncs.sync.nsync.dev"]
+    # kubectl delete waits for the CRD to be gone through a list/watch; without them it never returns.
+    verbs: ["get", "list", "watch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -50,21 +54,42 @@ metadata:
   annotations:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-weight": "-1"
-    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed,before-hook-creation
+    # No hook-failed, so a failed pod stays around for kubectl logs.
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
 spec:
   template:
     metadata:
       name: {{ include "k8s-namespace-sync.fullname" . }}-crd-cleanup
     spec:
       serviceAccountName: {{ include "k8s-namespace-sync.fullname" . }}-crd-cleanup
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: kubectl
-        image: bitnami/kubectl:latest
-        command:
-        - /bin/sh
-        - -c
-        - |
-          kubectl delete crd namespacesyncs.sync.nsync.dev --ignore-not-found
+        image: "{{ $cleanupImage.repository | default "registry.k8s.io/kubectl" }}:{{ $cleanupImage.tag | default "v1.37.1" }}"
+        command: ["kubectl"]
+        args: ["delete", "crd", "namespacesyncs.sync.nsync.dev", "--ignore-not-found"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       restartPolicy: Never
   backoffLimit: 1
 {{- end }}

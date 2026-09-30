@@ -82,6 +82,10 @@ rbac:
 crds:
   create: true
   remove: true
+  # Image for the pre-delete Job that deletes the CRD; it must have kubectl on PATH.
+  cleanupImage:
+    repository: registry.k8s.io/kubectl
+    tag: "v1.37.1"
 
 metrics:
   enabled: true  # Creates the metrics Service; the manager serves /metrics either way.
