@@ -57,13 +57,14 @@ func (r *NamespaceSyncReconciler) handleDeletionAndStatus(ctx context.Context, n
 }
 
 // createOrUpdateResource creates desired, or updates existing to match it when anything but the last-sync stamp differs.
-// updateFields copies resource-specific data from desired to existing.
+// guard can refuse to touch an existing object; updateFields copies resource-specific data from desired to existing.
 func createOrUpdateResource[T client.Object](
 	r *NamespaceSyncReconciler,
 	ctx context.Context,
 	desired T,
 	existing T,
 	resourceType string,
+	guard func(client.Object) error,
 	updateFields func(src, dst T),
 ) error {
 	log := log.FromContext(ctx).WithValues(
@@ -87,6 +88,11 @@ func createOrUpdateResource[T client.Object](
 			recordSyncSuccess(desired.GetNamespace(), resourceType)
 			return nil
 		}
+		return err
+	}
+
+	if err := guard(existing); err != nil {
+		recordSyncFailure(desired.GetNamespace(), resourceType)
 		return err
 	}
 
@@ -233,18 +239,27 @@ func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, na
 		return err
 	}
 
+	peers, err := r.listPeers(ctx, namespaceSync)
+	if err != nil {
+		log.Error(err, "Failed to list NamespaceSyncs during cleanup")
+		return err
+	}
+
+	source := namespaceSync.Spec.SourceNamespace
 	var errs []error
 	for _, ns := range namespaceList.Items {
 		if !r.shouldSyncToNamespace(ctx, ns.Name, namespaceSync) {
 			continue
 		}
 
-		errs = append(errs, r.cleanupResource(ctx, namespaceSync.Spec.SourceNamespace, ns.Name, namespaceSync.Spec.SecretName, "secret",
+		errs = append(errs, r.cleanupResource(ctx, source, ns.Name,
+			r.unclaimed(ctx, peers, "secret", source, ns.Name, namespaceSync.Spec.SecretName), "secret",
 			func(name, namespace string) client.Object {
 				return &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
 			})...)
 
-		errs = append(errs, r.cleanupResource(ctx, namespaceSync.Spec.SourceNamespace, ns.Name, namespaceSync.Spec.ConfigMapName, "configmap",
+		errs = append(errs, r.cleanupResource(ctx, source, ns.Name,
+			r.unclaimed(ctx, peers, "configmap", source, ns.Name, namespaceSync.Spec.ConfigMapName), "configmap",
 			func(name, namespace string) client.Object {
 				return &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
 			})...)

@@ -475,6 +475,36 @@ func TestEqualIgnoringLastSync(t *testing.T) {
 	})
 }
 
+func TestSyncsName(t *testing.T) {
+	r := &NamespaceSyncReconciler{}
+	ns := &syncv1.NamespaceSync{Spec: syncv1.NamespaceSyncSpec{
+		SecretName:      []string{"app-secret", "app-secret-bak"},
+		ConfigMapName:   []string{"app-config"},
+		ResourceFilters: &syncv1.ResourceFilters{Secrets: &syncv1.ResourceFilter{Exclude: []string{"*-bak"}}},
+	}}
+
+	tests := []struct {
+		resourceType string
+		name         string
+		want         bool
+	}{
+		{"secret", "app-secret", true},
+		{"secret", "app-secret-bak", false},
+		{"secret", "app-config", false},
+		{"configmap", "app-config", true},
+		{"configmap", "missing", false},
+		{"pod", "app-secret", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.resourceType+"/"+tt.name, func(t *testing.T) {
+			if got := r.syncsName(ns, tt.resourceType, tt.name); got != tt.want {
+				t.Errorf("syncsName() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestNamespaceSyncPredicate(t *testing.T) {
 	old := &syncv1.NamespaceSync{ObjectMeta: metav1.ObjectMeta{Name: "p", Namespace: "ns", Generation: 1}}
 

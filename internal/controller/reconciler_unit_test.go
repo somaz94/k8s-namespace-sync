@@ -31,6 +31,9 @@ const (
 	// updatedValue is the post-update payload written to a source ConfigMap /
 	// Secret / label, then asserted on the synced target copy.
 	updatedValue = "new-value"
+	// fromA and fromB mark which NamespaceSync's source a copy came from in the conflict tests.
+	fromA = "from-a"
+	fromB = "from-b"
 )
 
 func newTestScheme() *runtime.Scheme {
@@ -1171,6 +1174,7 @@ func TestCreateOrUpdateResource_GetError(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "test-secret", Namespace: "test-ns"},
 	}
 	err := createOrUpdateResource(r, context.Background(), secret, &corev1.Secret{}, "secret",
+		func(client.Object) error { return nil },
 		func(src, dst *corev1.Secret) {})
 	if err == nil {
 		t.Error("expected error from Get failure")
@@ -1518,5 +1522,456 @@ func TestDeleteManagedCopy_UsesAPIReader(t *testing.T) {
 		&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "fresh-secret", Namespace: "fresh-ns"}}, "fresh-src")
 	if err != nil || !deleted {
 		t.Errorf("expected the copy found through APIReader to be deleted, got deleted=%v err=%v", deleted, err)
+	}
+}
+
+// newSecretSync returns a NamespaceSync, finalizer already set, that syncs secrets from source into targets.
+func newSecretSync(name, source string, targets []string, secrets ...string) *syncv1.NamespaceSync {
+	return &syncv1.NamespaceSync{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: source, Finalizers: []string{finalizerName}},
+		Spec:       syncv1.NamespaceSyncSpec{SourceNamespace: source, TargetNamespaces: targets, SecretName: secrets},
+	}
+}
+
+func namespaceObjects(names ...string) []client.Object {
+	objs := make([]client.Object, 0, len(names))
+	for _, name := range names {
+		objs = append(objs, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}})
+	}
+	return objs
+}
+
+// sharedSecret returns the "shared" secret the conflict tests sync, holding value under "key".
+func sharedSecret(namespace, value string) *corev1.Secret {
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "shared", Namespace: namespace},
+		Data:       map[string][]byte{"key": []byte(value)},
+	}
+}
+
+func reconcileSync(t *testing.T, r *NamespaceSyncReconciler, ns *syncv1.NamespaceSync) {
+	t.Helper()
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: ns.Name, Namespace: ns.Namespace},
+	}); err != nil {
+		t.Fatalf("reconcile %s: %v", ns.Name, err)
+	}
+}
+
+func getSharedSecret(t *testing.T, c client.Client, namespace string) *corev1.Secret {
+	t.Helper()
+	var s corev1.Secret
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: namespace, Name: "shared"}, &s); err != nil {
+		t.Fatalf("get secret %s/shared: %v", namespace, err)
+	}
+	return &s
+}
+
+func failedNamespaces(t *testing.T, c client.Client, ns *syncv1.NamespaceSync) map[string]string {
+	t.Helper()
+	var got syncv1.NamespaceSync
+	if err := c.Get(context.Background(), client.ObjectKeyFromObject(ns), &got); err != nil {
+		t.Fatalf("get NamespaceSync %s: %v", ns.Name, err)
+	}
+	return got.Status.FailedNamespaces
+}
+
+func TestReconcile_LeavesAnotherSyncsSourceObject(t *testing.T) {
+	scheme := newTestScheme()
+
+	// sync-a targets every namespace, so it reaches b-src, where sync-b reads "shared" as its source.
+	syncA := newSecretSync("sync-a", "a-src", nil, "shared")
+	syncA.Spec.ConfigMapName = []string{"cfg"}
+	syncB := newSecretSync("sync-b", "b-src", []string{"b-tgt"}, "shared")
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(namespaceObjects("a-src", "b-src", "plain-tgt")...).
+		WithObjects(
+			sharedSecret("a-src", fromA),
+			sharedSecret("b-src", fromB),
+			&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "a-src"}, Data: map[string]string{"key": "value"}},
+			syncA, syncB,
+		).
+		WithStatusSubresource(syncA, syncB).
+		Build()
+	rec := &fakeRecorder{}
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme, Recorder: rec}
+
+	reconcileSync(t, r, syncA)
+
+	if got := string(getSharedSecret(t, c, "b-src").Data["key"]); got != fromB {
+		t.Errorf("expected sync-b's source to keep its data, got %q", got)
+	}
+	if got := string(getSharedSecret(t, c, "plain-tgt").Data["key"]); got != fromA {
+		t.Errorf("expected a namespace no peer claims to be synced, got %q", got)
+	}
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: "b-src", Name: "cfg"}, &corev1.ConfigMap{}); err != nil {
+		t.Errorf("expected the rest of the conflicting namespace to sync, got %v", err)
+	}
+	if msg := failedNamespaces(t, c, syncA)["b-src"]; !strings.Contains(msg, "is the source of NamespaceSync b-src/sync-b") {
+		t.Errorf("expected b-src to be reported as a conflict, got %q", msg)
+	}
+	if !slices.Contains(rec.events, "SyncConflict") {
+		t.Errorf("expected a SyncConflict event, got %v", rec.events)
+	}
+}
+
+func TestReconcile_LeavesCopyAnotherSyncOwns(t *testing.T) {
+	scheme := newTestScheme()
+
+	syncA := newSecretSync("sync-a", "a-src", []string{"tgt"}, "shared")
+	syncB := newSecretSync("sync-b", "b-src", []string{"tgt"}, "shared")
+	copyFromB := &corev1.Secret{
+		ObjectMeta: managedCopyMeta("shared", "tgt", "b-src"),
+		Data:       map[string][]byte{"key": []byte(fromB)},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(namespaceObjects("a-src", "b-src", "tgt")...).
+		WithObjects(sharedSecret("a-src", fromA), copyFromB, syncA, syncB).
+		WithStatusSubresource(syncA, syncB).
+		Build()
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	reconcileSync(t, r, syncA)
+
+	if got := string(getSharedSecret(t, c, "tgt").Data["key"]); got != fromB {
+		t.Errorf("expected sync-b's copy to be left alone, got %q", got)
+	}
+	if msg := failedNamespaces(t, c, syncA)["tgt"]; !strings.Contains(msg, "is synced from namespace b-src by NamespaceSync b-src/sync-b") {
+		t.Errorf("expected tgt to be reported as a conflict, got %q", msg)
+	}
+}
+
+func TestReconcile_TakesOverOrphanedCopy(t *testing.T) {
+	scheme := newTestScheme()
+
+	syncA := newSecretSync("sync-a", "a-src", []string{"tgt"}, "shared")
+	// No NamespaceSync syncs from gone-src any more.
+	orphan := &corev1.Secret{
+		ObjectMeta: managedCopyMeta("shared", "tgt", "gone-src"),
+		Data:       map[string][]byte{"key": []byte("stale")},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(namespaceObjects("a-src", "tgt")...).
+		WithObjects(sharedSecret("a-src", fromA), orphan, syncA).
+		WithStatusSubresource(syncA).
+		Build()
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	reconcileSync(t, r, syncA)
+
+	s := getSharedSecret(t, c, "tgt")
+	if string(s.Data["key"]) != fromA || s.Annotations[AnnotationSourceNamespace] != "a-src" {
+		t.Errorf("expected the orphaned copy to be taken over, got data %q from %q", s.Data["key"], s.Annotations[AnnotationSourceNamespace])
+	}
+	if failed := failedNamespaces(t, c, syncA); len(failed) != 0 {
+		t.Errorf("expected no conflicts, got %v", failed)
+	}
+}
+
+func TestReconcile_DeletionKeepsCopyAnotherSyncUses(t *testing.T) {
+	scheme := newTestScheme()
+	now := metav1.Now()
+
+	syncA := newSecretSync("sync-a", "src", []string{"both-tgt", "a-tgt"}, "shared")
+	syncA.DeletionTimestamp = &now
+	syncB := newSecretSync("sync-b", "src", []string{"both-tgt"}, "shared")
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(namespaceObjects("src", "both-tgt", "a-tgt")...).
+		WithObjects(
+			&corev1.Secret{ObjectMeta: managedCopyMeta("shared", "both-tgt", "src")},
+			&corev1.Secret{ObjectMeta: managedCopyMeta("shared", "a-tgt", "src")},
+			syncA, syncB,
+		).
+		Build()
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	reconcileSync(t, r, syncA)
+
+	getSharedSecret(t, c, "both-tgt")
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: "a-tgt", Name: "shared"}, &corev1.Secret{}); !apierrors.IsNotFound(err) {
+		t.Errorf("expected the copy only sync-a used to be deleted, got %v", err)
+	}
+	var got syncv1.NamespaceSync
+	if err := c.Get(context.Background(), client.ObjectKeyFromObject(syncA), &got); err == nil && len(got.Finalizers) > 0 {
+		t.Errorf("expected the finalizer to be removed, got %v", got.Finalizers)
+	}
+}
+
+func TestReconcile_PeerListError(t *testing.T) {
+	for _, deleting := range []bool{false, true} {
+		t.Run(fmt.Sprintf("deleting=%v", deleting), func(t *testing.T) {
+			scheme := newTestScheme()
+			ns := newSecretSync("peer-err", "pe-src", []string{"pe-tgt"}, "s")
+			if deleting {
+				now := metav1.Now()
+				ns.DeletionTimestamp = &now
+			}
+
+			c := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(namespaceObjects("pe-src", "pe-tgt")...).
+				WithObjects(ns).
+				WithStatusSubresource(ns).
+				WithInterceptorFuncs(interceptor.Funcs{
+					List: func(ctx context.Context, cl client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+						if _, ok := list.(*syncv1.NamespaceSyncList); ok {
+							return fmt.Errorf("list failed")
+						}
+						return cl.List(ctx, list, opts...)
+					},
+				}).
+				Build()
+			r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+			if _, err := r.Reconcile(context.Background(), ctrl.Request{
+				NamespacedName: types.NamespacedName{Name: "peer-err", Namespace: "pe-src"},
+			}); err == nil {
+				t.Error("expected the NamespaceSync list error to surface")
+			}
+			var got syncv1.NamespaceSync
+			if err := c.Get(context.Background(), client.ObjectKeyFromObject(ns), &got); err != nil || !slices.Contains(got.Finalizers, finalizerName) {
+				t.Errorf("expected the finalizer to stay until cleanup can run, got %v (err %v)", got.Finalizers, err)
+			}
+		})
+	}
+}
+
+func TestReconcile_ExplicitTargetChains(t *testing.T) {
+	scheme := newTestScheme()
+	ctx := context.Background()
+
+	// sync-x lists b, where sync-p reads "shared" as its source: a chain a -> b -> c.
+	syncX := newSecretSync("sync-x", "a", []string{"b"}, "shared")
+	syncP := newSecretSync("sync-p", "b", []string{"c"}, "shared")
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(namespaceObjects("a", "b", "c")...).
+		WithObjects(sharedSecret("a", fromA), syncX, syncP).
+		WithStatusSubresource(syncX, syncP).
+		Build()
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	reconcileSync(t, r, syncX)
+	if s := getSharedSecret(t, c, "b"); string(s.Data["key"]) != fromA || s.Annotations[AnnotationSourceNamespace] != "a" {
+		t.Fatalf("expected sync-x to write its copy into sync-p's source, got data %q from %q", s.Data["key"], s.Annotations[AnnotationSourceNamespace])
+	}
+	if failed := failedNamespaces(t, c, syncX); len(failed) != 0 {
+		t.Errorf("expected no conflicts for an explicit target, got %v", failed)
+	}
+
+	upstream := getSharedSecret(t, c, "a")
+	upstream.Data["key"] = []byte("rotated")
+	if err := c.Update(ctx, upstream); err != nil {
+		t.Fatalf("rotate upstream: %v", err)
+	}
+	reconcileSync(t, r, syncX)
+	if got := string(getSharedSecret(t, c, "b").Data["key"]); got != "rotated" {
+		t.Errorf("expected the rotation to reach the chained copy, got %q", got)
+	}
+
+	if err := c.Delete(ctx, upstream); err != nil {
+		t.Fatalf("delete upstream: %v", err)
+	}
+	reconcileSync(t, r, syncX)
+	if err := c.Get(ctx, types.NamespacedName{Namespace: "b", Name: "shared"}, &corev1.Secret{}); !apierrors.IsNotFound(err) {
+		t.Errorf("expected deleting the upstream to remove the chained copy, got %v", err)
+	}
+}
+
+func TestReconcile_ExplicitTargetKeepsHandAuthoredSource(t *testing.T) {
+	scheme := newTestScheme()
+
+	syncX := newSecretSync("sync-x", "a", []string{"b"}, "shared")
+	syncP := newSecretSync("sync-p", "b", []string{"c"}, "shared")
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(namespaceObjects("a", "b", "c")...).
+		WithObjects(sharedSecret("a", fromA), sharedSecret("b", "hand-made"), syncX, syncP).
+		WithStatusSubresource(syncX, syncP).
+		Build()
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	reconcileSync(t, r, syncX)
+
+	if got := string(getSharedSecret(t, c, "b").Data["key"]); got != "hand-made" {
+		t.Errorf("expected sync-p's hand-authored source to be kept, got %q", got)
+	}
+	if msg := failedNamespaces(t, c, syncX)["b"]; !strings.Contains(msg, "is the source of NamespaceSync b/sync-p") {
+		t.Errorf("expected b to be reported as a conflict, got %q", msg)
+	}
+}
+
+func TestReconcile_ExplicitTargetOutranksDefault(t *testing.T) {
+	scheme := newTestScheme()
+
+	// sync-d reaches t only because its targetNamespaces is empty; sync-x lists t.
+	syncD := newSecretSync("sync-d", "d", nil, "shared")
+	syncX := newSecretSync("sync-x", "x", []string{"t"}, "shared")
+	copyFromD := &corev1.Secret{
+		ObjectMeta: managedCopyMeta("shared", "t", "d"),
+		Data:       map[string][]byte{"key": []byte("from-d")},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(namespaceObjects("d", "x", "t")...).
+		WithObjects(sharedSecret("d", "from-d"), sharedSecret("x", "from-x"), copyFromD, syncD, syncX).
+		WithStatusSubresource(syncD, syncX).
+		Build()
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	reconcileSync(t, r, syncX)
+	if s := getSharedSecret(t, c, "t"); string(s.Data["key"]) != "from-x" || s.Annotations[AnnotationSourceNamespace] != "x" {
+		t.Fatalf("expected the explicit target to take the copy over, got data %q from %q", s.Data["key"], s.Annotations[AnnotationSourceNamespace])
+	}
+
+	reconcileSync(t, r, syncD)
+	if got := string(getSharedSecret(t, c, "t").Data["key"]); got != "from-x" {
+		t.Errorf("expected sync-d to leave the copy with sync-x, got %q", got)
+	}
+	if msg := failedNamespaces(t, c, syncD)["t"]; !strings.Contains(msg, "is synced from namespace x by NamespaceSync x/sync-x") {
+		t.Errorf("expected t to be reported as a conflict for sync-d, got %q", msg)
+	}
+}
+
+func TestReconcile_MissingSourceReportsNoConflict(t *testing.T) {
+	scheme := newTestScheme()
+
+	// sync-d's own source secret is gone, so it has nothing to write into sync-p's source.
+	syncD := newSecretSync("sync-d", "d", nil, "shared")
+	syncP := newSecretSync("sync-p", "b", []string{"c"}, "shared")
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(namespaceObjects("d", "b")...).
+		WithObjects(sharedSecret("b", fromB), syncD, syncP).
+		WithStatusSubresource(syncD, syncP).
+		Build()
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	reconcileSync(t, r, syncD)
+
+	if failed := failedNamespaces(t, c, syncD); len(failed) != 0 {
+		t.Errorf("expected no conflicts while the source is missing, got %v", failed)
+	}
+	if got := string(getSharedSecret(t, c, "b").Data["key"]); got != fromB {
+		t.Errorf("expected sync-p's source to be left alone, got %q", got)
+	}
+}
+
+func TestReconcile_ReportsEveryConflictInANamespace(t *testing.T) {
+	scheme := newTestScheme()
+
+	syncA := newSecretSync("sync-a", "a-src", nil, "shared")
+	syncA.Spec.ConfigMapName = []string{"cfg"}
+	syncB := newSecretSync("sync-b", "b-src", []string{"b-tgt"}, "shared")
+	syncB.Spec.ConfigMapName = []string{"cfg"}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(namespaceObjects("a-src", "b-src")...).
+		WithObjects(
+			sharedSecret("a-src", fromA),
+			sharedSecret("b-src", fromB),
+			&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "a-src"}, Data: map[string]string{"key": fromA}},
+			&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "b-src"}, Data: map[string]string{"key": fromB}},
+			syncA, syncB,
+		).
+		WithStatusSubresource(syncA, syncB).
+		Build()
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	reconcileSync(t, r, syncA)
+
+	msg := failedNamespaces(t, c, syncA)["b-src"]
+	for _, want := range []string{"secret b-src/shared", "configmap b-src/cfg", "; "} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("expected the b-src report to contain %q, got %q", want, msg)
+		}
+	}
+	var cfg corev1.ConfigMap
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: "b-src", Name: "cfg"}, &cfg); err != nil || cfg.Data["key"] != fromB {
+		t.Errorf("expected sync-b's configmap source to be left alone, got %v (err %v)", cfg.Data, err)
+	}
+}
+
+func TestReconcile_DeletionKeepsChainedCopy(t *testing.T) {
+	scheme := newTestScheme()
+	now := metav1.Now()
+
+	syncX := newSecretSync("sync-x", "a", []string{"b"}, "shared")
+	syncX.DeletionTimestamp = &now
+	syncP := newSecretSync("sync-p", "b", []string{"c"}, "shared")
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(namespaceObjects("a", "b", "c")...).
+		WithObjects(&corev1.Secret{ObjectMeta: managedCopyMeta("shared", "b", "a")}, syncX, syncP).
+		Build()
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	reconcileSync(t, r, syncX)
+
+	getSharedSecret(t, c, "b")
+}
+
+func TestReconcile_DeletionWithDeletingPeerRemovesSharedCopy(t *testing.T) {
+	scheme := newTestScheme()
+	now := metav1.Now()
+
+	// Both are being deleted, as with kubectl delete --all or a namespace deletion.
+	syncA := newSecretSync("sync-a", "src", []string{"tgt"}, "shared")
+	syncB := newSecretSync("sync-b", "src", []string{"tgt"}, "shared")
+	syncA.DeletionTimestamp, syncB.DeletionTimestamp = &now, &now
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(namespaceObjects("src", "tgt")...).
+		WithObjects(&corev1.Secret{ObjectMeta: managedCopyMeta("shared", "tgt", "src")}, syncA, syncB).
+		Build()
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	reconcileSync(t, r, syncA)
+
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: "tgt", Name: "shared"}, &corev1.Secret{}); !apierrors.IsNotFound(err) {
+		t.Errorf("expected a copy shared only with a deleting peer to be removed, got %v", err)
+	}
+}
+
+func TestReconcile_SameSourcePeersShareACopy(t *testing.T) {
+	scheme := newTestScheme()
+
+	syncA := newSecretSync("sync-a", "src", []string{"tgt"}, "shared")
+	syncB := newSecretSync("sync-b", "src", []string{"tgt"}, "shared")
+	stale := &corev1.Secret{
+		ObjectMeta: managedCopyMeta("shared", "tgt", "src"),
+		Data:       map[string][]byte{"key": []byte("stale")},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(namespaceObjects("src", "tgt")...).
+		WithObjects(sharedSecret("src", "fresh"), stale, syncA, syncB).
+		WithStatusSubresource(syncA, syncB).
+		Build()
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	reconcileSync(t, r, syncA)
+
+	if got := string(getSharedSecret(t, c, "tgt").Data["key"]); got != "fresh" {
+		t.Errorf("expected the shared copy to be updated, got %q", got)
+	}
+	if failed := failedNamespaces(t, c, syncA); len(failed) != 0 {
+		t.Errorf("expected peers with the same source not to conflict, got %v", failed)
 	}
 }

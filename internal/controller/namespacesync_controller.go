@@ -18,11 +18,13 @@ package controller
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"time"
 
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
@@ -67,7 +69,7 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	namespacesync := &syncv1.NamespaceSync{}
 	err := r.Get(ctx, req.NamespacedName, namespacesync)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			log.Info("NamespaceSync resource not found. Ignoring since object must be deleted")
 			return ctrl.Result{}, nil
 		}
@@ -125,15 +127,28 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
+	peers, err := r.listPeers(ctx, namespacesync)
+	if err != nil {
+		log.Error(err, "Failed to list NamespaceSyncs")
+		return ctrl.Result{}, err
+	}
+
 	startTime := time.Now()
 
+	var conflicted []string
 	for _, ns := range namespaceList.Items {
-		if r.shouldSyncToNamespace(ctx, ns.Name, namespacesync) {
-			if err := r.syncResources(ctx, namespacesync, ns.Name); err != nil {
-				log.Error(err, "Failed to sync resources", "namespace", ns.Name)
-				failedNamespaces[ns.Name] = err.Error()
-				continue
-			}
+		if !r.shouldSyncToNamespace(ctx, ns.Name, namespacesync) {
+			continue
+		}
+		conflicts, err := r.syncResources(ctx, namespacesync, ns.Name, peers)
+		switch {
+		case err != nil:
+			log.Error(err, "Failed to sync resources", "namespace", ns.Name)
+			failedNamespaces[ns.Name] = oneLine(errors.Join(append(conflicts, err)...))
+		case len(conflicts) > 0:
+			conflicted = append(conflicted, ns.Name)
+			failedNamespaces[ns.Name] = oneLine(errors.Join(conflicts...))
+		default:
 			log.Info("Successfully synced resources", "namespace", ns.Name)
 			syncedNamespaces = append(syncedNamespaces, ns.Name)
 		}
@@ -145,6 +160,12 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	resourceCount.WithLabelValues(namespacesync.Name, "configmap").Set(float64(len(namespacesync.Spec.ConfigMapName)))
 
 	if r.Recorder != nil {
+		// One event per reconcile: a lasting conflict per namespace would drain the recorder's spam-filter budget.
+		if len(conflicted) > 0 {
+			r.Recorder.Eventf(namespacesync, corev1.EventTypeWarning, "SyncConflict",
+				"Skipped objects another NamespaceSync owns in %d namespaces (%s); see status.failedNamespaces",
+				len(conflicted), strings.Join(conflicted[:min(len(conflicted), 5)], ", "))
+		}
 		if len(failedNamespaces) > 0 {
 			r.Recorder.Eventf(namespacesync, corev1.EventTypeWarning, "SyncFailed", "Failed to sync to %d namespaces", len(failedNamespaces))
 		}
@@ -165,13 +186,6 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 func (r *NamespaceSyncReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	logger := log.Log.WithName("namespacesync-controller")
 	logger.Info("Setting up controller manager")
-
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &syncv1.NamespaceSync{}, ".spec.sourceNamespace", func(rawObj client.Object) []string {
-		namespaceSync := rawObj.(*syncv1.NamespaceSync)
-		return []string{namespaceSync.Spec.SourceNamespace}
-	}); err != nil {
-		return err
-	}
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&syncv1.NamespaceSync{}, builder.WithPredicates(namespaceSyncPredicate())).

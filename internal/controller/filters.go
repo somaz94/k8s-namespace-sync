@@ -38,31 +38,24 @@ func (r *NamespaceSyncReconciler) shouldSyncResource(name string, filter *syncv1
 
 // shouldSyncToNamespace determines if resources should be synced to the given namespace
 func (r *NamespaceSyncReconciler) shouldSyncToNamespace(ctx context.Context, namespace string, namespaceSync *syncv1.NamespaceSync) bool {
-	logger := log.FromContext(ctx).WithValues("namespace", namespace)
+	shouldSync := r.targetsNamespace(namespace, namespaceSync)
+	log.FromContext(ctx).V(1).Info("Evaluated target namespace", "namespace", namespace, "shouldSync", shouldSync)
+	return shouldSync
+}
 
-	if r.isSystemNamespace(namespace) {
-		logger.Info("Namespace is system namespace, skipping sync")
+// targetsNamespace is shouldSyncToNamespace without logging. Conflict checks judge peers with it, so a
+// peer's ownership always matches the targets that peer syncs itself.
+func (r *NamespaceSyncReconciler) targetsNamespace(namespace string, namespaceSync *syncv1.NamespaceSync) bool {
+	switch {
+	case r.isSystemNamespace(namespace),
+		namespace == namespaceSync.Spec.SourceNamespace,
+		contains(namespaceSync.Spec.Exclude, namespace):
 		return false
+	case len(namespaceSync.Spec.TargetNamespaces) > 0:
+		return contains(namespaceSync.Spec.TargetNamespaces, namespace)
+	default:
+		return true
 	}
-
-	if namespace == namespaceSync.Spec.SourceNamespace {
-		logger.Info("Namespace is source namespace, skipping sync")
-		return false
-	}
-
-	if contains(namespaceSync.Spec.Exclude, namespace) {
-		logger.Info("Namespace is in exclude list, skipping sync")
-		return false
-	}
-
-	if len(namespaceSync.Spec.TargetNamespaces) > 0 {
-		shouldSync := contains(namespaceSync.Spec.TargetNamespaces, namespace)
-		logger.Info("Checking target namespaces", "shouldSync", shouldSync)
-		return shouldSync
-	}
-
-	logger.Info("Namespace will be synced")
-	return true
 }
 
 // isSystemNamespace checks if the namespace is a system namespace
