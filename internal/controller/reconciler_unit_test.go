@@ -553,6 +553,45 @@ func TestReconcile_SecondPassWritesNothing(t *testing.T) {
 	}
 }
 
+func TestReconcile_MetadataOnlyChangeKeepsLastSync(t *testing.T) {
+	scheme := newTestScheme()
+	const stamp = "2020-01-01T00:00:00Z"
+
+	ns := newSecretSync("meta-test", "meta-src", []string{"meta-tgt"}, "shared")
+	// The label a mutating admission would have added to the stored copy.
+	stored := sharedSecret("meta-tgt", fromA)
+	stored.ObjectMeta = managedCopyMeta("shared", "meta-tgt", "meta-src")
+	stored.Labels = map[string]string{injectedLabel: labelTrue}
+	stored.Annotations[AnnotationLastSync] = stamp
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(namespaceObjects("meta-src", "meta-tgt")...).
+		WithObjects(sharedSecret("meta-src", fromA), stored, ns).
+		WithStatusSubresource(ns).
+		Build()
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	reconcileSync(t, r, ns)
+	s := getSharedSecret(t, c, "meta-tgt")
+	if _, ok := s.Labels[injectedLabel]; ok {
+		t.Errorf("expected the label the source lacks to be removed, got %v", s.Labels)
+	}
+	if got := s.Annotations[AnnotationLastSync]; got != stamp {
+		t.Errorf("expected a metadata-only update to keep last-sync %q, got %q", stamp, got)
+	}
+
+	source := getSharedSecret(t, c, "meta-src")
+	source.Data["key"] = []byte(updatedValue)
+	if err := c.Update(context.Background(), source); err != nil {
+		t.Fatalf("update source: %v", err)
+	}
+	reconcileSync(t, r, ns)
+	if got := getSharedSecret(t, c, "meta-tgt").Annotations[AnnotationLastSync]; got == stamp {
+		t.Errorf("expected a data change to move last-sync, got %q", got)
+	}
+}
+
 func TestFindNamespaceSyncs(t *testing.T) {
 	scheme := newTestScheme()
 

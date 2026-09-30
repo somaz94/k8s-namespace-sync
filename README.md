@@ -386,11 +386,11 @@ Synced resources are annotated with metadata that tracks their origin and sync s
 |------------|-------------|
 | `namespacesync.nsync.dev/source-namespace` | The namespace from which the resource was synced |
 | `namespacesync.nsync.dev/source-name` | The name of the source resource |
-| `namespacesync.nsync.dev/last-sync` | When the controller last wrote the copy (RFC3339 format); it moves only when the copy had to change |
+| `namespacesync.nsync.dev/last-sync` | When the controller last wrote the copy's data (RFC3339 format); an update that changes only labels or annotations keeps it |
 
 These annotations allow you to identify which resources are managed by NamespaceSync and trace them back to their source.
 
-Copies keep exactly the labels and annotations of their source. If a mutating admission policy or another controller adds labels or annotations to the copies, every sync reverts them and rewrites the copy, which can keep the controller busy; exclude the copies from such policies.
+Copies keep exactly the labels and annotations of their source. When a mutating admission policy or webhook adds labels or annotations to the copies, a sync removes them and admission adds them back in the same request, so as long as admission writes the same values every time, the stored copy does not change and nothing is rewritten. Admission that changes the data or writes a different value each time, and another controller that edits the copies after they are written, still make every sync rewrite the copy; exclude the copies from those.
 
 <br/>
 

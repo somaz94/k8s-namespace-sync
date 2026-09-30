@@ -56,7 +56,7 @@ func (r *NamespaceSyncReconciler) handleDeletionAndStatus(ctx context.Context, n
 	return ctrl.Result{}, nil
 }
 
-// createOrUpdateResource creates desired, or updates existing to match it when anything but the last-sync stamp differs.
+// createOrUpdateResource creates desired, or updates existing to match it; a copy whose data is unchanged keeps its last-sync stamp.
 // guard can refuse to touch an existing object; updateFields copies resource-specific data from desired to existing.
 func createOrUpdateResource[T client.Object](
 	r *NamespaceSyncReconciler,
@@ -98,8 +98,9 @@ func createOrUpdateResource[T client.Object](
 
 	before := existing.DeepCopyObject().(T)
 	updateFields(desired, existing)
+	keepLastSync(before, existing)
 
-	if equalIgnoringLastSync(before, existing) {
+	if equality.Semantic.DeepEqual(before, existing) {
 		log.V(1).Info("Resource already in sync", "resourceType", resourceType)
 		recordSyncSuccess(desired.GetNamespace(), resourceType)
 		return nil
@@ -116,14 +117,25 @@ func createOrUpdateResource[T client.Object](
 	return nil
 }
 
-// equalIgnoringLastSync reports whether a and b differ at most in the last-sync stamp. Rewriting only the
-// stamp fires a watch event that requeues the NamespaceSync, so every copy would be rewritten without end.
-func equalIgnoringLastSync(a, b client.Object) bool {
+// keepLastSync carries the stored last-sync stamp over to after when the update leaves the data alone. A fresh
+// stamp would fire a watch event that requeues the NamespaceSync, and when a mutating admission re-adds labels
+// the sync strips, keeping the stamp is what lets the apiserver drop the write as a no-op.
+func keepLastSync(before, after client.Object) {
+	stamp, ok := before.GetAnnotations()[AnnotationLastSync]
+	if !ok || !equalIgnoringMetadata(before, after) {
+		return
+	}
+	annotations := after.GetAnnotations()
+	annotations[AnnotationLastSync] = stamp
+	after.SetAnnotations(annotations)
+}
+
+// equalIgnoringMetadata reports whether a and b differ at most in their labels and annotations.
+func equalIgnoringMetadata(a, b client.Object) bool {
 	a, b = a.DeepCopyObject().(client.Object), b.DeepCopyObject().(client.Object)
 	for _, obj := range []client.Object{a, b} {
-		annotations := obj.GetAnnotations()
-		delete(annotations, AnnotationLastSync)
-		obj.SetAnnotations(annotations)
+		obj.SetLabels(nil)
+		obj.SetAnnotations(nil)
 	}
 	return equality.Semantic.DeepEqual(a, b)
 }

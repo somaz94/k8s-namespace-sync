@@ -27,6 +27,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/zap/zapcore"
+	admissionv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -35,6 +36,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
 	// +kubebuilder:scaffold:imports
@@ -82,6 +85,10 @@ var _ = BeforeSuite(func(ctx context.Context) {
 		// The version must match ENVTEST_K8S_VERSION in the Makefile.
 		BinaryAssetsDirectory: filepath.Join("..", "..", "bin", "k8s",
 			fmt.Sprintf("1.31.0-%s-%s", runtime.GOOS, runtime.GOARCH)),
+
+		WebhookInstallOptions: envtest.WebhookInstallOptions{
+			MutatingWebhooks: []*admissionv1.MutatingWebhookConfiguration{labelInjectingWebhook()},
+		},
 	}
 
 	var err error
@@ -104,8 +111,14 @@ var _ = BeforeSuite(func(ctx context.Context) {
 			BindAddress: "0",
 		},
 		LeaderElection: false,
+		WebhookServer: webhook.NewServer(webhook.Options{
+			Host:    testEnv.WebhookInstallOptions.LocalServingHost,
+			Port:    testEnv.WebhookInstallOptions.LocalServingPort,
+			CertDir: testEnv.WebhookInstallOptions.LocalServingCertDir,
+		}),
 	})
 	Expect(err).ToNot(HaveOccurred())
+	k8sManager.GetWebhookServer().Register("/"+injectLabelPath, &webhook.Admission{Handler: admission.HandlerFunc(injectLabel)})
 
 	err = (&NamespaceSyncReconciler{
 		Client:    k8sManager.GetClient(),

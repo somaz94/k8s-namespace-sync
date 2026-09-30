@@ -423,14 +423,15 @@ func TestIsManagedCopy(t *testing.T) {
 	}
 }
 
-func TestEqualIgnoringLastSync(t *testing.T) {
-	base := func() *corev1.Secret {
+func TestKeepLastSync(t *testing.T) {
+	const stored, fresh = "2026-01-01T00:00:00Z", "2026-01-01T00:00:01Z"
+	secret := func(stamp string) *corev1.Secret {
 		return &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        "obj",
 				Namespace:   "tgt",
 				Labels:      map[string]string{"app": "demo"},
-				Annotations: map[string]string{AnnotationLastSync: "2026-01-01T00:00:00Z", "note": "a"},
+				Annotations: map[string]string{AnnotationLastSync: stamp, "note": "a"},
 			},
 			Data: map[string][]byte{"key": []byte("value")},
 		}
@@ -438,44 +439,36 @@ func TestEqualIgnoringLastSync(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		mutate func(a, b *corev1.Secret)
-		want   bool
+		mutate func(before, after *corev1.Secret)
+		want   string
 	}{
-		{"identical", func(a, b *corev1.Secret) {}, true},
-		{"only last-sync differs", func(a, b *corev1.Secret) { b.Annotations[AnnotationLastSync] = "2026-01-01T00:00:01Z" }, true},
-		{"last-sync missing on one side", func(a, b *corev1.Secret) { delete(b.Annotations, AnnotationLastSync) }, true},
-		{"stamp only vs no annotations", func(a, b *corev1.Secret) {
-			a.Annotations = map[string]string{AnnotationLastSync: "2026-01-01T00:00:00Z"}
-			b.Annotations = nil
-		}, true},
-		{"nil vs empty labels", func(a, b *corev1.Secret) { a.Labels, b.Labels = nil, map[string]string{} }, true},
-		{"data differs", func(a, b *corev1.Secret) { b.Data["key"] = []byte("other") }, false},
-		{"label differs", func(a, b *corev1.Secret) { b.Labels["app"] = "other" }, false},
-		{"other annotation differs", func(a, b *corev1.Secret) { b.Annotations["note"] = "b" }, false},
-		{"type differs", func(a, b *corev1.Secret) { b.Type = corev1.SecretTypeTLS }, false},
-		{"stamp and data differ", func(a, b *corev1.Secret) {
-			b.Annotations[AnnotationLastSync] = "2026-01-01T00:00:01Z"
-			b.Data["key"] = []byte("other")
-		}, false},
+		{"unchanged", func(before, after *corev1.Secret) {}, stored},
+		{"label differs", func(before, after *corev1.Secret) { after.Labels["app"] = "other" }, stored},
+		{"label added by admission", func(before, after *corev1.Secret) { before.Labels[injectedLabel] = labelTrue }, stored},
+		{"annotation differs", func(before, after *corev1.Secret) { after.Annotations["note"] = "b" }, stored},
+		{"nil vs empty labels", func(before, after *corev1.Secret) { before.Labels, after.Labels = nil, map[string]string{} }, stored},
+		{"data differs", func(before, after *corev1.Secret) { after.Data["key"] = []byte("other") }, fresh},
+		{"type differs", func(before, after *corev1.Secret) { after.Type = corev1.SecretTypeTLS }, fresh},
+		{"no stored stamp", func(before, after *corev1.Secret) { delete(before.Annotations, AnnotationLastSync) }, fresh},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a, b := base(), base()
-			tt.mutate(a, b)
-			if got := equalIgnoringLastSync(a, b); got != tt.want {
-				t.Errorf("equalIgnoringLastSync() = %v, want %v", got, tt.want)
+			before, after := secret(stored), secret(fresh)
+			tt.mutate(before, after)
+			keepLastSync(before, after)
+			if got := after.Annotations[AnnotationLastSync]; got != tt.want {
+				t.Errorf("last-sync = %q, want %q", got, tt.want)
 			}
 		})
 	}
 
-	t.Run("leaves its arguments untouched", func(t *testing.T) {
-		a, b := base(), base()
-		equalIgnoringLastSync(a, b)
-		for name, s := range map[string]*corev1.Secret{"a": a, "b": b} {
-			if _, ok := s.Annotations[AnnotationLastSync]; !ok {
-				t.Errorf("expected the last-sync annotation on %s to survive the comparison", name)
-			}
+	t.Run("leaves before untouched", func(t *testing.T) {
+		before, after := secret(stored), secret(fresh)
+		before.Labels[injectedLabel] = labelTrue
+		keepLastSync(before, after)
+		if before.Labels[injectedLabel] != labelTrue || before.Annotations["note"] != "a" {
+			t.Errorf("expected the stored object to survive the comparison, got labels %v annotations %v", before.Labels, before.Annotations)
 		}
 	})
 }
