@@ -138,12 +138,12 @@ func (r *NamespaceSyncReconciler) copyLabelsAndAnnotations(src, dst *metav1.Obje
 	}
 
 	for k, v := range src.Labels {
-		if !strings.HasPrefix(k, "kubernetes.io/") {
+		if !isSourceOnlyKey(k) {
 			dst.Labels[k] = v
 		}
 	}
 	for k, v := range src.Annotations {
-		if !strings.HasPrefix(k, "kubernetes.io/") {
+		if !isSourceOnlyKey(k) {
 			dst.Annotations[k] = v
 		}
 	}
@@ -151,6 +151,12 @@ func (r *NamespaceSyncReconciler) copyLabelsAndAnnotations(src, dst *metav1.Obje
 	dst.Annotations[AnnotationSourceNamespace] = src.Namespace
 	dst.Annotations[AnnotationSourceName] = src.Name
 	dst.Annotations[AnnotationLastSync] = time.Now().Format(time.RFC3339)
+}
+
+// isSourceOnlyKey reports whether a label or annotation key describes the source object itself and must not
+// follow it into a copy; kubectl's last-applied-configuration, for one, would point kubectl apply at the source.
+func isSourceOnlyKey(key string) bool {
+	return strings.HasPrefix(key, "kubernetes.io/") || strings.HasPrefix(key, "kubectl.kubernetes.io/")
 }
 
 // isManagedCopy reports whether obj carries the source annotations stamped on every copy synced from sourceNamespace.

@@ -330,11 +330,16 @@ func TestCopyLabelsAndAnnotations(t *testing.T) {
 			Annotations: map[string]string{
 				"custom":                    "value",
 				"kubernetes.io/description": "skip-this",
+				"kubectl.kubernetes.io/last-applied-configuration": `{"metadata":{"namespace":"source-ns"}}`,
 			},
 		}
 		dst := &metav1.ObjectMeta{}
 
 		r.copyLabelsAndAnnotations(src, dst)
+
+		if _, ok := dst.Annotations["kubectl.kubernetes.io/last-applied-configuration"]; ok {
+			t.Error("kubectl.kubernetes.io/ annotation should not be copied")
+		}
 
 		if dst.Labels["app"] != "myapp" {
 			t.Errorf("expected label 'app'='myapp', got %q", dst.Labels["app"])
