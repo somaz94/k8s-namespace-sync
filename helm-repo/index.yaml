@@ -1,6 +1,30 @@
 apiVersion: v1
 entries:
   k8s-namespace-sync:
+  - apiVersion: v2
+    appVersion: v0.4.1
+    created: "2026-09-30T01:45:44.576086631Z"
+    description: A Helm chart for K8s Namespace Sync Controller
+    digest: aff34def0569c87d5d1705f33199c731ca28c216201238d9794820230afdc5e7
+    home: https://github.com/somaz94/k8s-namespace-sync
+    icon: https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/docs/images/logo.png
+    keywords:
+    - kubernetes
+    - namespace
+    - sync
+    - configmap
+    - secret
+    kubeVersion: '>=1.25.0-0'
+    maintainers:
+    - name: somaz94
+      url: https://github.com/somaz94
+    name: k8s-namespace-sync
+    sources:
+    - https://github.com/somaz94/k8s-namespace-sync
+    type: application
+    urls:
+    - https://somaz94.github.io/k8s-namespace-sync/helm-repo/k8s-namespace-sync-0.4.1.tgz
+    version: 0.4.1
   - annotations:
       helm.sh/hook: pre-install,pre-upgrade
       helm.sh/hook-weight: "-5"
@@ -136,4 +160,4 @@ entries:
     urls:
     - https://somaz94.github.io/k8s-namespace-sync/helm-repo/k8s-namespace-sync-0.2.0.tgz
     version: 0.2.0
-generated: "2026-07-29T07:58:37.914115176Z"
+generated: "2026-09-30T01:45:44.575430831Z"
