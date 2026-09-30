@@ -1,11 +1,17 @@
 # K8s Namespace Sync Helm Chart
 
+<br/>
+
 ## Introduction
 This Helm chart installs K8s Namespace Sync Controller on your Kubernetes cluster. The controller automatically synchronizes ConfigMaps and Secrets across multiple namespaces.
+
+<br/>
 
 ## Prerequisites
 - Kubernetes 1.25+ (the CRD ships CEL validation rules)
 - Helm 3.0+
+
+<br/>
 
 ## Installing the Chart
 
@@ -32,6 +38,8 @@ To install with custom values:
 ```bash
 helm install k8s-namespace-sync k8s-namespace-sync/k8s-namespace-sync -f values.yaml
 ```
+
+<br/>
 
 ## Configuration
 
@@ -114,7 +122,11 @@ The following table lists the configurable parameters of the k8s-namespace-sync 
 | `customresource.target.configMapName` | ConfigMaps to sync for target config | `[]` |
 | `customresource.target.secretName` | Secrets to sync for target config | `[]` |
 
+<br/>
+
 ## Namespace Configuration
+
+<br/>
 
 ### Changing Installation Namespace
 
@@ -159,6 +171,8 @@ spec:
 ```
 
 This prevents the controller from attempting to synchronize resources in its own namespace, which could cause unexpected behavior. The system namespaces are automatically excluded, so you only need to add your custom installation namespace to the exclude list.
+
+<br/>
 
 ## Reconcile Interval Configuration
 
@@ -209,6 +223,8 @@ cd k8s-namespace-sync
 helm install k8s-namespace-sync ./helm/k8s-namespace-sync -f ./helm/k8s-namespace-sync/values/basic-values.yaml
 ```
 
+<br/>
+
 ### Exclude Sync
 ```yaml
 customresource:
@@ -225,6 +241,8 @@ customresource:
       - test-ns2
       - test-ns3
 ```
+
+<br/>
 
 ### Filter Sync
 ```yaml
@@ -249,6 +267,8 @@ customresource:
       - test-ns3
 ```
 
+<br/>
+
 ### Target Sync
 ```yaml
 customresource:
@@ -267,6 +287,8 @@ customresource:
 ```
 
 You can enable multiple types of sync configurations simultaneously by setting their respective `enabled` flags to `true`.
+
+<br/>
 
 ## Usage
 
@@ -333,6 +355,8 @@ kubectl get pods -n k8s-namespace-sync-system
 kubectl logs -n k8s-namespace-sync-system -l control-plane=controller-manager -f
 ```
 
+<br/>
+
 ### Common Issues
 
 1. **CRD not installed**
@@ -352,6 +376,8 @@ kubectl logs -n k8s-namespace-sync-system -l control-plane=controller-manager -f
      ```bash
      kubectl describe pod -n k8s-namespace-sync-system -l control-plane=controller-manager
      ```
+
+<br/>
 
 ## Support
 

@@ -113,6 +113,8 @@ make deploy IMG=somaz940/k8s-namespace-sync:v0.4.2
 
 ## Usage
 
+<br/>
+
 ### 1. Create a Secret or ConfigMap in the source namespace:
 
 ```yaml
@@ -530,7 +532,11 @@ kubectl delete namespacesync --all -A
 kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/dist/install.yaml
 ```
 
+<br/>
+
 # Development Setup
+
+<br/>
 
 ### Install Required Tools
 

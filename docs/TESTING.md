@@ -336,6 +336,8 @@ kubectl delete namespacesync --all
 
 ---
 
+<br/>
+
 ## 6. Full Cleanup
 
 ```bash
@@ -351,6 +353,8 @@ make undeploy
 ```
 
 ---
+
+<br/>
 
 ## Sample Files
 

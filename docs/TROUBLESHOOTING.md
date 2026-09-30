@@ -4,6 +4,8 @@
 
 ## Helm Test Issues
 
+<br/>
+
 ### `UPGRADE FAILED: "release-name" has no deployed releases`
 
 A previous failed install/uninstall left a stuck release.
@@ -16,6 +18,8 @@ helm list -a --all-namespaces | grep <release-name>
 helm uninstall <release-name> --no-hooks
 kubectl delete ns k8s-namespace-sync-system --ignore-not-found
 ```
+
+<br/>
 
 ### CRD cleanup hook fails: `BackoffLimitExceeded`
 
@@ -53,6 +57,8 @@ kubectl delete ns k8s-namespace-sync-system --ignore-not-found
 
 ## Controller Issues
 
+<br/>
+
 ### Controller pod is CrashLoopBackOff
 
 ```bash
@@ -68,6 +74,8 @@ Common causes:
 - RBAC permission denied: Check ClusterRole and ClusterRoleBinding
 - Port conflict: Metrics (8443) or health probe (8081) port already in use
 
+<br/>
+
 ### CRD not found
 
 ```bash
@@ -77,6 +85,8 @@ kubectl get crd namespacesyncs.sync.nsync.dev
 # Reinstall CRDs
 make install
 ```
+
+<br/>
 
 ### Resources not syncing to target namespaces
 
@@ -174,9 +184,13 @@ git pull --rebase origin main
 git push origin main
 ```
 
+<br/>
+
 ### Release workflow: `GITHUB_TOKEN` doesn't trigger other workflows
 
 This is expected. Use `PAT_TOKEN` for operations that need to trigger downstream workflows.
+
+<br/>
 
 ### Dependabot PR merge fails: OAuth token lacks `workflow` scope
 
@@ -185,6 +199,8 @@ Dependabot PRs that modify `.github/workflows/` files need the `workflow` scope.
 <br/>
 
 ## Build Issues
+
+<br/>
 
 ### `make manifests generate` shows diff in CI
 
