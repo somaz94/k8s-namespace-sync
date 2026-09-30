@@ -53,6 +53,7 @@ final_cleanup() {
   cleanup_test_resources
   kubectl delete crd namespacesyncs.sync.nsync.dev --ignore-not-found 2>/dev/null || true
   helm uninstall "${RELEASE_NAME}" --no-hooks 2>/dev/null || true
+  kubectl delete pod "${RELEASE_NAME}-k8s-namespace-sync-test-connection" --ignore-not-found 2>/dev/null || true
   kubectl delete ns "${NAMESPACE}" --ignore-not-found 2>/dev/null || true
 }
 trap final_cleanup EXIT
@@ -140,6 +141,13 @@ if kubectl get svc -n "${NAMESPACE}" 2>/dev/null | grep -q metrics; then
   log_pass "Metrics service created"
 else
   log_fail "Metrics service not found"
+fi
+
+if HELM_TEST_OUT=$(helm test "${RELEASE_NAME}" --timeout 60s --logs 2>&1); then
+  log_pass "helm test: metrics service reachable"
+else
+  log_fail "helm test failed"
+  echo "${HELM_TEST_OUT}"
 fi
 
 log_info "Creating test namespaces and resources..."
