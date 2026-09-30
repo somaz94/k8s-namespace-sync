@@ -24,6 +24,9 @@ spec:
     - jsonPath: .status.conditions[?(@.type=='Ready')].status
       name: Status
       type: string
+    - jsonPath: .status.conditions[?(@.type=='Ready')].reason
+      name: Reason
+      type: string
     - jsonPath: .status.conditions[?(@.type=='Ready')].message
       name: Message
       type: string
@@ -108,15 +111,22 @@ spec:
                 description: |-
                   SourceNamespace is the namespace to sync from.
                   Must be a DNS-1123 label, matching the Kubernetes namespace naming rules.
+                  It cannot be changed after creation; recreate the NamespaceSync to sync from another namespace.
                 maxLength: 63
                 minLength: 1
                 pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                 type: string
+                x-kubernetes-validations:
+                - message: sourceNamespace is immutable; delete and recreate the NamespaceSync
+                    to change it
+                  rule: self == oldSelf
               targetNamespaces:
                 description: TargetNamespaces is the list of namespaces to sync to
                 items:
                   type: string
                 type: array
+            required:
+            - sourceNamespace
             type: object
             x-kubernetes-validations:
             - message: at least one secret or configmap must be specified
@@ -126,8 +136,9 @@ spec:
             description: NamespaceSyncStatus defines the observed state of NamespaceSync
             properties:
               conditions:
-                description: Conditions represent the latest available observations
-                  of an object's state
+                description: |-
+                  Conditions represent the latest available observations of an object's state.
+                  The Ready condition's reason is SyncComplete, PartialSync, SyncFailed or InvalidSpec.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -189,8 +200,10 @@ spec:
               failedNamespaces:
                 additionalProperties:
                   type: string
-                description: FailedNamespaces maps namespace names to error messages
-                  for failed syncs
+                description: |-
+                  FailedNamespaces maps each target namespace that failed to sync to its error message.
+                  A "sync conflict" message means another NamespaceSync owns the object; the namespace's other resources still sync.
+                  It is empty while the spec is invalid; the Ready condition carries that error.
                 type: object
               lastSyncTime:
                 description: LastSyncTime is the last time the sync was performed
@@ -202,12 +215,15 @@ spec:
                 format: int64
                 type: integer
               syncedNamespaces:
-                description: SyncedNamespaces is a list of namespaces that were successfully
-                  synced
+                description: |-
+                  SyncedNamespaces is a list of namespaces that were successfully synced.
+                  It is empty while the spec is invalid.
                 items:
                   type: string
                 type: array
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true

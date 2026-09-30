@@ -9,9 +9,12 @@ import (
 type NamespaceSyncSpec struct {
 	// SourceNamespace is the namespace to sync from.
 	// Must be a DNS-1123 label, matching the Kubernetes namespace naming rules.
+	// It cannot be changed after creation; recreate the NamespaceSync to sync from another namespace.
+	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="sourceNamespace is immutable; delete and recreate the NamespaceSync to change it"
 	SourceNamespace string `json:"sourceNamespace"`
 
 	// TargetNamespaces is the list of namespaces to sync to
@@ -41,15 +44,19 @@ type NamespaceSyncStatus struct {
 	// +optional
 	LastSyncTime metav1.Time `json:"lastSyncTime,omitempty"`
 
-	// SyncedNamespaces is a list of namespaces that were successfully synced
+	// SyncedNamespaces is a list of namespaces that were successfully synced.
+	// It is empty while the spec is invalid.
 	// +optional
 	SyncedNamespaces []string `json:"syncedNamespaces,omitempty"`
 
-	// FailedNamespaces maps namespace names to error messages for failed syncs
+	// FailedNamespaces maps each target namespace that failed to sync to its error message.
+	// A "sync conflict" message means another NamespaceSync owns the object; the namespace's other resources still sync.
+	// It is empty while the spec is invalid; the Ready condition carries that error.
 	// +optional
 	FailedNamespaces map[string]string `json:"failedNamespaces,omitempty"`
 
-	// Conditions represent the latest available observations of an object's state
+	// Conditions represent the latest available observations of an object's state.
+	// The Ready condition's reason is SyncComplete, PartialSync, SyncFailed or InvalidSpec.
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge
@@ -87,6 +94,7 @@ type ResourceFilters struct {
 // +kubebuilder:printcolumn:name="Source",type="string",JSONPath=".spec.sourceNamespace"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
+// +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 
 // NamespaceSync is the Schema for the namespacesyncs API
@@ -94,6 +102,7 @@ type NamespaceSync struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// +kubebuilder:validation:Required
 	Spec   NamespaceSyncSpec   `json:"spec,omitempty"`
 	Status NamespaceSyncStatus `json:"status,omitempty"`
 }

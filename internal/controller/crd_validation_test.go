@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
@@ -83,6 +84,33 @@ var _ = Describe("NamespaceSync CRD validation", func() {
 
 		It("accepts a valid source namespace", func() {
 			createOK(newSync("good-source"))
+		})
+
+		It("rejects changing the source namespace", func() {
+			ns := newSync("immutable-source")
+			createOK(ns)
+
+			// Re-read inside the retry for the same reason as the update-guard spec below.
+			Eventually(func(g Gomega) {
+				latest := &syncv1.NamespaceSync{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ns), latest)).To(Succeed())
+				latest.Spec.SourceNamespace = "kube-public"
+
+				err := k8sClient.Update(ctx, latest)
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("sourceNamespace is immutable"))
+			}, time.Second*10, time.Millisecond*250).Should(Succeed())
+		})
+
+		// Removing the field skips the transition rule, so without `required` a source could change in two steps.
+		It("rejects removing the source namespace", func() {
+			ns := newSync("unset-source")
+			createOK(ns)
+
+			err := k8sClient.Patch(ctx, ns, client.RawPatch(types.JSONPatchType,
+				[]byte(`[{"op":"remove","path":"/spec/sourceNamespace"}]`)))
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("sourceNamespace"))
 		})
 	})
 
