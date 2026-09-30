@@ -40,7 +40,7 @@ kubectl delete job -n k8s-namespace-sync-system -l app.kubernetes.io/name=k8s-na
 
 ### Helm uninstall hangs
 
-The pre-delete hook Job, which deletes the CRD, has not finished. Charts before 0.5.0 gave it no permission to watch the CRD, so the `kubectl delete` inside it waited forever. A release keeps the hook it was installed or upgraded with, so upgrade to a newer chart before uninstalling. Otherwise look at the Job's pod: an image it cannot pull, a pod stuck in Pending, or a stopped controller that leaves NamespaceSync finalizers in place all keep it running.
+The pre-delete hook Job, which deletes the CRD, has not finished. Charts before 0.5.0 gave it no permission to watch the CRD, so the `kubectl delete` inside it waited forever. A release keeps the hook it was installed or upgraded with, so upgrade to a newer chart before uninstalling. Otherwise look at the Job: an image it cannot pull, a pod stuck in Pending, a pod a ResourceQuota refused (`kubectl describe job` shows `FailedCreate`; set `crds.cleanupResources` with `helm upgrade` first), or a stopped controller that leaves NamespaceSync finalizers in place all keep it running.
 
 ```bash
 # Inspect the hook Job; a failed pod is kept for its logs
