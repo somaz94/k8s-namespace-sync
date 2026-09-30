@@ -54,6 +54,8 @@ type NamespaceSyncReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
+	// APIReader bypasses the informer cache so a delete never trusts a stale cache miss.
+	APIReader client.Reader
 }
 
 func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

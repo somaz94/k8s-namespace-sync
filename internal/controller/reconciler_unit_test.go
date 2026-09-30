@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"testing"
 
+	dto "github.com/prometheus/client_model/go"
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -32,6 +34,18 @@ func newTestScheme() *runtime.Scheme {
 	_ = clientgoscheme.AddToScheme(scheme)
 	_ = syncv1.AddToScheme(scheme)
 	return scheme
+}
+
+// managedCopyMeta returns the metadata the controller stamps on a copy synced from sourceNamespace.
+func managedCopyMeta(name, namespace, sourceNamespace string) metav1.ObjectMeta {
+	return metav1.ObjectMeta{
+		Name:      name,
+		Namespace: namespace,
+		Annotations: map[string]string{
+			AnnotationSourceNamespace: sourceNamespace,
+			AnnotationSourceName:      name,
+		},
+	}
 }
 
 func TestReconcile_NotFound(t *testing.T) {
@@ -181,13 +195,13 @@ func TestReconcile_Deletion(t *testing.T) {
 	targetNs := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "del-tgt-ns"}}
 
 	syncedSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "del-secret", Namespace: "del-tgt-ns"},
+		ObjectMeta: managedCopyMeta("del-secret", "del-tgt-ns", "del-src-ns"),
 		Type:       corev1.SecretTypeOpaque,
 		Data:       map[string][]byte{"key": []byte("value")},
 	}
 
 	syncedCm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: "del-cm", Namespace: "del-tgt-ns"},
+		ObjectMeta: managedCopyMeta("del-cm", "del-tgt-ns", "del-src-ns"),
 		Data:       map[string]string{"key": "value"},
 	}
 
@@ -242,13 +256,13 @@ func TestReconcile_SourceSecretNotFound_DeletesFromTarget(t *testing.T) {
 
 	// Target copies exist with no source objects behind them.
 	syncedSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "missing-secret", Namespace: "snf-tgt-ns"},
+		ObjectMeta: managedCopyMeta("missing-secret", "snf-tgt-ns", "snf-src-ns"),
 		Type:       corev1.SecretTypeOpaque,
 		Data:       map[string][]byte{"key": []byte("old-value")},
 	}
 
 	syncedCm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: "missing-cm", Namespace: "snf-tgt-ns"},
+		ObjectMeta: managedCopyMeta("missing-cm", "snf-tgt-ns", "snf-src-ns"),
 		Data:       map[string]string{"key": "old-value"},
 	}
 
@@ -990,10 +1004,12 @@ func TestCleanupResource_DeleteError(t *testing.T) {
 	scheme := newTestScheme()
 
 	targetNs := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "cleanup-del-err-ns"}}
+	secret1 := &corev1.Secret{ObjectMeta: managedCopyMeta("secret1", "cleanup-del-err-ns", "cleanup-src-ns")}
+	secret2 := &corev1.Secret{ObjectMeta: managedCopyMeta("secret2", "cleanup-del-err-ns", "cleanup-src-ns")}
 
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithObjects(targetNs).
+		WithObjects(targetNs, secret1, secret2).
 		WithInterceptorFuncs(interceptor.Funcs{
 			Delete: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
 				return fmt.Errorf("delete permission denied")
@@ -1003,7 +1019,7 @@ func TestCleanupResource_DeleteError(t *testing.T) {
 
 	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
 
-	errs := r.cleanupResource(context.Background(), "cleanup-del-err-ns", []string{"secret1", "secret2"}, "secret",
+	errs := r.cleanupResource(context.Background(), "cleanup-src-ns", "cleanup-del-err-ns", []string{"secret1", "secret2"}, "secret",
 		func(name, namespace string) client.Object {
 			return &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
 		})
@@ -1026,9 +1042,12 @@ func TestCleanupSyncedResources_DeleteError(t *testing.T) {
 		},
 	}
 
+	syncedSecret := &corev1.Secret{ObjectMeta: managedCopyMeta("s1", "cleanup-del-tgt", "cleanup-del-src")}
+	syncedCm := &corev1.ConfigMap{ObjectMeta: managedCopyMeta("cm1", "cleanup-del-tgt", "cleanup-del-src")}
+
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithObjects(targetNs, ns).
+		WithObjects(targetNs, ns, syncedSecret, syncedCm).
 		WithInterceptorFuncs(interceptor.Funcs{
 			Delete: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
 				return fmt.Errorf("delete failed")
@@ -1128,4 +1147,179 @@ func (f *fakeRecorder) Eventf(object runtime.Object, eventtype, reason, messageF
 
 func (f *fakeRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
 	f.events = append(f.events, reason)
+}
+
+func TestReconcile_KeepsUnmanagedTargets(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		deleting bool
+	}{
+		{"cleanup on NamespaceSync deletion", true},
+		{"source resource missing", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			scheme := newTestScheme()
+
+			// Same names the spec lists, but not synced from own-src-ns.
+			userSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "shared-secret", Namespace: "own-tgt-ns"},
+				Data:       map[string][]byte{"key": []byte("user-data")},
+			}
+			otherSourceCm := &corev1.ConfigMap{
+				ObjectMeta: managedCopyMeta("shared-cm", "own-tgt-ns", "other-src-ns"),
+				Data:       map[string]string{"key": "other-data"},
+			}
+
+			ns := &syncv1.NamespaceSync{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "own-test",
+					Namespace:  "own-src-ns",
+					Finalizers: []string{finalizerName},
+				},
+				Spec: syncv1.NamespaceSyncSpec{
+					SourceNamespace:  "own-src-ns",
+					TargetNamespaces: []string{"own-tgt-ns"},
+					SecretName:       []string{"shared-secret"},
+					ConfigMapName:    []string{"shared-cm"},
+				},
+			}
+			if tc.deleting {
+				now := metav1.Now()
+				ns.DeletionTimestamp = &now
+			}
+
+			c := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(
+					&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "own-src-ns"}},
+					&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "own-tgt-ns"}},
+					userSecret, otherSourceCm, ns,
+				).
+				WithStatusSubresource(ns).
+				Build()
+
+			r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+			if _, err := r.Reconcile(context.Background(), ctrl.Request{
+				NamespacedName: types.NamespacedName{Name: "own-test", Namespace: "own-src-ns"},
+			}); err != nil {
+				t.Fatalf("reconcile error: %v", err)
+			}
+
+			var s corev1.Secret
+			if err := c.Get(context.Background(), types.NamespacedName{Name: "shared-secret", Namespace: "own-tgt-ns"}, &s); err != nil {
+				t.Errorf("expected unannotated secret to survive, got %v", err)
+			}
+			var cm corev1.ConfigMap
+			if err := c.Get(context.Background(), types.NamespacedName{Name: "shared-cm", Namespace: "own-tgt-ns"}, &cm); err != nil {
+				t.Errorf("expected configmap synced from another source to survive, got %v", err)
+			}
+		})
+	}
+}
+
+func TestDeleteManagedCopy_GetError(t *testing.T) {
+	scheme := newTestScheme()
+	deleteCalled := false
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, cl client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				return fmt.Errorf("api server error")
+			},
+			Delete: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+				deleteCalled = true
+				return cl.Delete(ctx, obj, opts...)
+			},
+		}).
+		Build()
+
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	deleted, err := r.deleteManagedCopy(context.Background(),
+		&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "s", Namespace: "get-err-ns"}}, "src-ns")
+	if err == nil || deleted || deleteCalled {
+		t.Errorf("expected the Get error and no delete, got deleted=%v err=%v deleteCalled=%v", deleted, err, deleteCalled)
+	}
+}
+
+func TestCleanupResource_MissingCopyIsNotCountedAsCleanup(t *testing.T) {
+	scheme := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(scheme).Build()
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	before := counterValue(t, "missing-copy-ns", "secret")
+	errs := r.cleanupResource(context.Background(), "src-ns", "missing-copy-ns", []string{"absent"}, "secret",
+		func(name, namespace string) client.Object {
+			return &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
+		})
+	if len(errs) != 0 {
+		t.Errorf("expected no errors for a missing copy, got %v", errs)
+	}
+	if after := counterValue(t, "missing-copy-ns", "secret"); after != before {
+		t.Errorf("expected cleanup success counter unchanged, got %v -> %v", before, after)
+	}
+}
+
+func counterValue(t *testing.T, namespace, resourceType string) float64 {
+	t.Helper()
+	var m dto.Metric
+	if err := cleanupSuccessCounter.WithLabelValues(namespace, resourceType).Write(&m); err != nil {
+		t.Fatalf("read counter: %v", err)
+	}
+	return m.GetCounter().GetValue()
+}
+
+func TestDeleteManagedCopy_StaleResourceVersion(t *testing.T) {
+	scheme := newTestScheme()
+	synced := &corev1.Secret{ObjectMeta: managedCopyMeta("rv-secret", "rv-ns", "rv-src")}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(synced).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, cl client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if err := cl.Get(ctx, key, obj, opts...); err != nil {
+					return err
+				}
+				// What a read taken before a concurrent change would have seen.
+				obj.SetResourceVersion("1")
+				return nil
+			},
+		}).
+		Build()
+
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+
+	deleted, err := r.deleteManagedCopy(context.Background(),
+		&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "rv-secret", Namespace: "rv-ns"}}, "rv-src")
+	if deleted || !apierrors.IsConflict(err) {
+		t.Errorf("expected a conflict and no delete, got deleted=%v err=%v", deleted, err)
+	}
+	var s corev1.Secret
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "rv-secret", Namespace: "rv-ns"}, &s); err != nil {
+		t.Errorf("expected the copy to survive a stale delete, got %v", err)
+	}
+}
+
+func TestDeleteManagedCopy_UsesAPIReader(t *testing.T) {
+	scheme := newTestScheme()
+	synced := &corev1.Secret{ObjectMeta: managedCopyMeta("fresh-secret", "fresh-ns", "fresh-src")}
+	live := fake.NewClientBuilder().WithScheme(scheme).WithObjects(synced).Build()
+
+	// A cache that has not seen the copy yet.
+	cached := interceptor.NewClient(live, interceptor.Funcs{
+		Get: func(ctx context.Context, cl client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			return apierrors.NewNotFound(corev1.Resource("secrets"), key.Name)
+		},
+	})
+
+	r := &NamespaceSyncReconciler{Client: cached, Scheme: scheme, APIReader: live}
+
+	deleted, err := r.deleteManagedCopy(context.Background(),
+		&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "fresh-secret", Namespace: "fresh-ns"}}, "fresh-src")
+	if err != nil || !deleted {
+		t.Errorf("expected the copy found through APIReader to be deleted, got deleted=%v err=%v", deleted, err)
+	}
 }

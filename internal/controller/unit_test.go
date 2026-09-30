@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -326,4 +327,27 @@ func TestCopyLabelsAndAnnotations(t *testing.T) {
 			t.Error("new label should be added")
 		}
 	})
+}
+
+func TestIsManagedCopy(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		want        bool
+	}{
+		{"no annotations", nil, false},
+		{"managed", map[string]string{AnnotationSourceNamespace: "src", AnnotationSourceName: "obj"}, true},
+		{"other source namespace", map[string]string{AnnotationSourceNamespace: "other", AnnotationSourceName: "obj"}, false},
+		{"other source name", map[string]string{AnnotationSourceNamespace: "src", AnnotationSourceName: "renamed"}, false},
+		{"namespace annotation only", map[string]string{AnnotationSourceNamespace: "src"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			obj := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "obj", Namespace: "tgt", Annotations: tt.annotations}}
+			if got := isManagedCopy(obj, "src"); got != tt.want {
+				t.Errorf("isManagedCopy() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -126,10 +127,53 @@ func (r *NamespaceSyncReconciler) copyLabelsAndAnnotations(src, dst *metav1.Obje
 	dst.Annotations[AnnotationLastSync] = time.Now().Format(time.RFC3339)
 }
 
-// cleanupResource deletes a list of named resources from the given namespace.
-// newObj builds the typed stub passed to Delete.
+// isManagedCopy reports whether obj carries the source annotations stamped on every copy synced from sourceNamespace.
+func isManagedCopy(obj client.Object, sourceNamespace string) bool {
+	annotations := obj.GetAnnotations()
+	return annotations[AnnotationSourceNamespace] == sourceNamespace &&
+		annotations[AnnotationSourceName] == obj.GetName()
+}
+
+// deleteManagedCopy deletes obj only if it is a copy synced from sourceNamespace, so a same-named
+// object someone else created in the target namespace is never removed. It reports whether it deleted.
+func (r *NamespaceSyncReconciler) deleteManagedCopy(ctx context.Context, obj client.Object, sourceNamespace string) (bool, error) {
+	key := client.ObjectKeyFromObject(obj)
+	if err := r.uncachedReader().Get(ctx, key, obj); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("get %s: %w", key, err)
+	}
+	if !isManagedCopy(obj, sourceNamespace) {
+		log.FromContext(ctx).V(1).Info("Skipping delete of a resource this controller did not sync",
+			"namespace", key.Namespace,
+			"name", key.Name)
+		return false, nil
+	}
+	// Preconditions stop the delete if the object was replaced or changed (e.g. annotations stripped) since the Get.
+	uid, rv := obj.GetUID(), obj.GetResourceVersion()
+	if err := r.Delete(ctx, obj, client.Preconditions{UID: &uid, ResourceVersion: &rv}); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("delete %s: %w", key, err)
+	}
+	return true, nil
+}
+
+// uncachedReader returns APIReader when set, falling back to the (cached) client.
+func (r *NamespaceSyncReconciler) uncachedReader() client.Reader {
+	if r.APIReader != nil {
+		return r.APIReader
+	}
+	return r.Client
+}
+
+// cleanupResource deletes the named copies synced from sourceNamespace out of namespace.
+// newObj builds the typed stub to look up and delete.
 func (r *NamespaceSyncReconciler) cleanupResource(
 	ctx context.Context,
+	sourceNamespace string,
 	namespace string,
 	names []string,
 	resourceType string,
@@ -138,15 +182,16 @@ func (r *NamespaceSyncReconciler) cleanupResource(
 	log := log.FromContext(ctx)
 	var errs []error
 	for _, name := range names {
-		obj := newObj(name, namespace)
-		if err := r.Delete(ctx, obj); err != nil && !apierrors.IsNotFound(err) {
+		deleted, err := r.deleteManagedCopy(ctx, newObj(name, namespace), sourceNamespace)
+		switch {
+		case err != nil:
 			log.Error(err, "Failed to delete synced resource",
 				"resourceType", resourceType,
 				"namespace", namespace,
 				"name", name)
 			recordCleanupFailure(namespace, resourceType)
 			errs = append(errs, err)
-		} else {
+		case deleted:
 			log.Info("Successfully deleted resource",
 				"resourceType", resourceType,
 				"namespace", namespace,
@@ -174,12 +219,12 @@ func (r *NamespaceSyncReconciler) cleanupSyncedResources(ctx context.Context, na
 			continue
 		}
 
-		errs = append(errs, r.cleanupResource(ctx, ns.Name, namespaceSync.Spec.SecretName, "secret",
+		errs = append(errs, r.cleanupResource(ctx, namespaceSync.Spec.SourceNamespace, ns.Name, namespaceSync.Spec.SecretName, "secret",
 			func(name, namespace string) client.Object {
 				return &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
 			})...)
 
-		errs = append(errs, r.cleanupResource(ctx, ns.Name, namespaceSync.Spec.ConfigMapName, "configmap",
+		errs = append(errs, r.cleanupResource(ctx, namespaceSync.Spec.SourceNamespace, ns.Name, namespaceSync.Spec.ConfigMapName, "configmap",
 			func(name, namespace string) client.Object {
 				return &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
 			})...)

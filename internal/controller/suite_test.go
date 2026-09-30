@@ -108,8 +108,9 @@ var _ = BeforeSuite(func(ctx context.Context) {
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&NamespaceSyncReconciler{
-		Client: k8sManager.GetClient(),
-		Scheme: k8sManager.GetScheme(),
+		Client:    k8sManager.GetClient(),
+		Scheme:    k8sManager.GetScheme(),
+		APIReader: k8sManager.GetAPIReader(),
 		// SA1019: matches the production wiring in cmd/main.go; see the note there.
 		//nolint:staticcheck
 		Recorder: k8sManager.GetEventRecorderFor("namespacesync-controller"),

@@ -166,8 +166,9 @@ func main() {
 		"scheme", scheme.Name())
 
 	if err = (&controller.NamespaceSyncReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		APIReader: mgr.GetAPIReader(),
 		// SA1019: GetEventRecorder returns the events.k8s.io/v1 recorder, whose
 		// Eventf signature differs. Migrating the event surface is tracked separately.
 		//nolint:staticcheck

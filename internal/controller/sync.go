@@ -69,12 +69,15 @@ func (r *NamespaceSyncReconciler) syncSecret(ctx context.Context, sourceNamespac
 					Namespace: targetNamespace,
 				},
 			}
-			if err := r.Delete(ctx, targetSecret); err != nil && !errors.IsNotFound(err) {
+			deleted, err := r.deleteManagedCopy(ctx, targetSecret, sourceNamespace)
+			if err != nil {
 				return err
 			}
-			log.Info("Deleted secret from target namespace as it was deleted from source",
-				"secret", secretName,
-				"targetNamespace", targetNamespace)
+			if deleted {
+				log.Info("Deleted secret from target namespace as it was deleted from source",
+					"secret", secretName,
+					"targetNamespace", targetNamespace)
+			}
 			return nil
 		}
 		return err
@@ -116,12 +119,15 @@ func (r *NamespaceSyncReconciler) syncConfigMap(ctx context.Context, sourceNames
 					Namespace: targetNamespace,
 				},
 			}
-			if err := r.Delete(ctx, targetConfigMap); err != nil && !errors.IsNotFound(err) {
+			deleted, err := r.deleteManagedCopy(ctx, targetConfigMap, sourceNamespace)
+			if err != nil {
 				return err
 			}
-			log.Info("Deleted configmap from target namespace as it was deleted from source",
-				"configmap", configMapName,
-				"targetNamespace", targetNamespace)
+			if deleted {
+				log.Info("Deleted configmap from target namespace as it was deleted from source",
+					"configmap", configMapName,
+					"targetNamespace", targetNamespace)
+			}
 			return nil
 		}
 		return err
