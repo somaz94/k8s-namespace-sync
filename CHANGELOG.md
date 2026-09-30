@@ -2,6 +2,57 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.4.1](https://github.com/somaz94/k8s-namespace-sync/compare/v0.4.0...v0.4.1) (2026-09-30)
+
+### Bug Fixes
+
+- **helm:** wire metrics.enabled and drop inert Chart.yaml hooks ([87c1647](https://github.com/somaz94/k8s-namespace-sync/commit/87c164725541360e1c294b6c2371fd184aa67d5d))
+- reject malformed resource filter globs and delete before validating ([9a1ea16](https://github.com/somaz94/k8s-namespace-sync/commit/9a1ea16229eb41eed4affb19983ac35c03e9012a))
+- only delete target copies the controller synced ([40e5457](https://github.com/somaz94/k8s-namespace-sync/commit/40e5457cd28205fdc1447e9a03c00070eb775f1e))
+
+### Code Refactoring
+
+- trim stale and redundant comments in controller ([757e923](https://github.com/somaz94/k8s-namespace-sync/commit/757e923c5bfb010efececc0b2269c9472361af65))
+
+### Documentation
+
+- document ownership-safe deletes, glob validation and helm values ([843caeb](https://github.com/somaz94/k8s-namespace-sync/commit/843caeb785a9fa095deb01d5e201aed538dd9d43))
+- **api:** describe configMapName and secretName as lists ([6420ca0](https://github.com/somaz94/k8s-namespace-sync/commit/6420ca09b095cf869724f6bdd5ab09618408b4f6))
+
+### Tests
+
+- fail helm RBAC and service checks when resources are missing ([ad25217](https://github.com/somaz94/k8s-namespace-sync/commit/ad2521720c54b4086aa6a7af23d405eb77a6211f))
+- trim stale and redundant comments in test suites ([d1686e0](https://github.com/somaz94/k8s-namespace-sync/commit/d1686e00339eec6bc0b9a663a731f69dd5808262))
+
+### Continuous Integration
+
+- trim redundant comments in gitlab-mirror workflow ([0077330](https://github.com/somaz94/k8s-namespace-sync/commit/0077330f24c0803ad25bf94b50f51053588738fb))
+- retry mirror pushes on transient remote failures ([4784fac](https://github.com/somaz94/k8s-namespace-sync/commit/4784fac94d57dcaf1de26e85b2e152f77028465b))
+- drop the dead issue-close trigger from changelog generation ([8fc6783](https://github.com/somaz94/k8s-namespace-sync/commit/8fc6783224f58037dc497f74142d545db893b9d2))
+
+### Chores
+
+- **release:** bump version to v0.4.1 ([b22cf1a](https://github.com/somaz94/k8s-namespace-sync/commit/b22cf1aff3ff859215195d2ea0344d0194ef711e))
+- remove stray cmd/main.go.bak ([3e42f87](https://github.com/somaz94/k8s-namespace-sync/commit/3e42f87c12ce281efea0fc865eb1c8a815a70b0d))
+- fix stale comments in helm chart and samples ([90ebfa4](https://github.com/somaz94/k8s-namespace-sync/commit/90ebfa47a051de382516575316d3da12e4e4a964))
+- trim stale and redundant comments in build and test scripts ([81b6401](https://github.com/somaz94/k8s-namespace-sync/commit/81b64015306f63521c4b8a71512f6f3ece52455b))
+- **deps:** bump the go-minor group with 4 updates (#64) ([#64](https://github.com/somaz94/k8s-namespace-sync/pull/64)) ([90af4b5](https://github.com/somaz94/k8s-namespace-sync/commit/90af4b54acaa633892193eef3960ab471ce37add))
+- **deps:** bump the go-minor group with 3 updates (#63) ([#63](https://github.com/somaz94/k8s-namespace-sync/pull/63)) ([a850ab4](https://github.com/somaz94/k8s-namespace-sync/commit/a850ab4b02d91d7b20293a997b861aede0f36974))
+- **deps:** bump github.com/onsi/ginkgo/v2 in the go-minor group (#62) ([#62](https://github.com/somaz94/k8s-namespace-sync/pull/62)) ([6df65d2](https://github.com/somaz94/k8s-namespace-sync/commit/6df65d236cace1a7f760835c10eaff4665d9e20c))
+- **deps:** bump sigs.k8s.io/controller-runtime in the go-minor group (#61) ([#61](https://github.com/somaz94/k8s-namespace-sync/pull/61)) ([27c8670](https://github.com/somaz94/k8s-namespace-sync/commit/27c8670f5138e14f9e7f3dbb99947c547a3ef763))
+- **deps:** bump the go-minor group with 3 updates (#60) ([#60](https://github.com/somaz94/k8s-namespace-sync/pull/60)) ([9dc82c0](https://github.com/somaz94/k8s-namespace-sync/commit/9dc82c02f9de5da0d5c02918a08cb62b654bc5c3))
+- **deps:** bump the go-minor group with 3 updates (#59) ([#59](https://github.com/somaz94/k8s-namespace-sync/pull/59)) ([af1d711](https://github.com/somaz94/k8s-namespace-sync/commit/af1d711d738ef4d6cffb4d7686a8c447c7519a43))
+- **deps:** bump golang from 1.26 to 1.27 in the docker-minor group (#58) ([#58](https://github.com/somaz94/k8s-namespace-sync/pull/58)) ([e3e01ea](https://github.com/somaz94/k8s-namespace-sync/commit/e3e01ea914dc635cb4678a496389802ab6f9f56d))
+- **deps:** bump github.com/onsi/ginkgo/v2 in the go-minor group (#57) ([#57](https://github.com/somaz94/k8s-namespace-sync/pull/57)) ([0943e5d](https://github.com/somaz94/k8s-namespace-sync/commit/0943e5d4a5ce3c5e25466222b58601e0f67c6651))
+- extract repeated test literals into constants ([3121d84](https://github.com/somaz94/k8s-namespace-sync/commit/3121d8499339e18606b850f2179197f6f424c1e4))
+- resolve golangci-lint staticcheck findings ([fa2632f](https://github.com/somaz94/k8s-namespace-sync/commit/fa2632fa2a991efd40a13737e7f6b23b5e5b856b))
+
+### Contributors
+
+- somaz
+
+<br/>
+
 ## [v0.4.0](https://github.com/somaz94/k8s-namespace-sync/compare/v0.3.2...v0.4.0) (2026-07-29)
 
 ### Features
