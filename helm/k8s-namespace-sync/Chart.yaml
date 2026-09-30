@@ -21,5 +21,3 @@ sources:
 maintainers:
   - name: somaz94
     url: https://github.com/somaz94
-
-icon: https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/main/docs/images/logo.png
