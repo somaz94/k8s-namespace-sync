@@ -77,26 +77,7 @@ func main() {
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 
-	opts := zap.Options{
-		Development:     true,
-		Level:           zapcore.DebugLevel,
-		StacktraceLevel: zapcore.ErrorLevel,
-		Encoder: zapcore.NewConsoleEncoder(zapcore.EncoderConfig{
-			TimeKey:        "ts",
-			LevelKey:       "level",
-			NameKey:        "logger",
-			CallerKey:      "caller",
-			FunctionKey:    zapcore.OmitKey,
-			MessageKey:     "msg",
-			StacktraceKey:  "stacktrace",
-			LineEnding:     zapcore.DefaultLineEnding,
-			EncodeLevel:    zapcore.LowercaseColorLevelEncoder,
-			EncodeTime:     zapcore.ISO8601TimeEncoder,
-			EncodeDuration: zapcore.StringDurationEncoder,
-			EncodeCaller:   zapcore.ShortCallerEncoder,
-		}),
-	}
-
+	opts := zapOptions()
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
@@ -194,5 +175,29 @@ func main() {
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
+	}
+}
+
+// zapOptions keeps the field names for both encoders, so --zap-encoder only chooses console or JSON.
+// Defaults go in fields the flags overwrite: setting Options.Encoder, or a time encoder inside
+// EncoderConfigOptions, would make zap ignore --zap-encoder or --zap-time-encoding.
+func zapOptions() zap.Options {
+	return zap.Options{
+		Development:     true,
+		Level:           zapcore.DebugLevel,
+		StacktraceLevel: zapcore.ErrorLevel,
+		TimeEncoder:     zapcore.ISO8601TimeEncoder,
+		EncoderConfigOptions: []zap.EncoderConfigOption{func(ec *zapcore.EncoderConfig) {
+			ec.TimeKey = "ts"
+			ec.LevelKey = "level"
+			ec.NameKey = "logger"
+			ec.CallerKey = "caller"
+			ec.FunctionKey = zapcore.OmitKey
+			ec.MessageKey = "msg"
+			ec.StacktraceKey = "stacktrace"
+			ec.EncodeLevel = zapcore.LowercaseLevelEncoder
+			ec.EncodeDuration = zapcore.StringDurationEncoder
+			ec.EncodeCaller = zapcore.ShortCallerEncoder
+		}},
 	}
 }
