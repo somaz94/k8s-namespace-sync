@@ -8,12 +8,12 @@ When releasing a new version, update the following files:
 
 | File | Field | Example |
 |------|-------|---------|
-| `Makefile` | `IMG ?= somaz940/k8s-namespace-sync:<version>` | `v0.4.2` |
-| `helm/k8s-namespace-sync/Chart.yaml` | `version` (chart version, without `v` prefix) | `0.4.2` |
-| `helm/k8s-namespace-sync/Chart.yaml` | `appVersion` (app version, with `v` prefix) | `"v0.4.2"` |
-| `helm/k8s-namespace-sync/values.yaml` | `image.tag` | `v0.4.2` |
-| `config/manager/kustomization.yaml` | `newTag` | `v0.4.2` |
-| `dist/install.yaml` | `image:` (rebuild with `make build-installer`) | `v0.4.2` |
+| `Makefile` | `IMG ?= somaz940/k8s-namespace-sync:<version>` | `v0.5.0` |
+| `helm/k8s-namespace-sync/Chart.yaml` | `version` (chart version, without `v` prefix) | `0.5.0` |
+| `helm/k8s-namespace-sync/Chart.yaml` | `appVersion` (app version, with `v` prefix) | `"v0.5.0"` |
+| `helm/k8s-namespace-sync/values.yaml` | `image.tag` | `v0.5.0` |
+| `config/manager/kustomization.yaml` | `newTag` | `v0.5.0` |
+| `dist/install.yaml` | `image:` (rebuild with `make build-installer`) | `v0.5.0` |
 
 <br/>
 
