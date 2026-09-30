@@ -12,9 +12,10 @@ This Helm chart installs K8s Namespace Sync Controller on your Kubernetes cluste
 Install from the OCI registry (Helm 3.8+):
 ```bash
 helm install k8s-namespace-sync oci://ghcr.io/somaz94/charts/k8s-namespace-sync \
-  --version 0.4.1 \
-  --namespace k8s-namespace-sync-system --create-namespace
+  --version 0.4.1
 ```
+
+The chart creates the namespace named by its `namespace` value itself, so do not pass `--namespace` with `--create-namespace` for that namespace; the install would fail with `namespaces "..." already exists`.
 
 Or add the classic Helm repository:
 ```bash

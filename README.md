@@ -63,8 +63,7 @@ The controller:
 ```bash
 # Single-command install — no helm repo add needed
 helm install k8s-namespace-sync oci://ghcr.io/somaz94/charts/k8s-namespace-sync \
-  --version 0.4.1 \
-  --namespace k8s-namespace-sync-system --create-namespace
+  --version 0.4.1
 ```
 
 **Alternative: classic Helm repo**
@@ -79,9 +78,10 @@ helm install k8s-namespace-sync k8s-namespace-sync/k8s-namespace-sync
 
 # Or install with custom values
 helm install k8s-namespace-sync k8s-namespace-sync/k8s-namespace-sync \
-  --set image.tag=v0.4.1 \
-  --namespace k8s-namespace-sync-system --create-namespace
+  --set image.tag=v0.4.1
 ```
+
+The chart creates the namespace named by its `namespace` value (`k8s-namespace-sync-system` unless you change it), so do not add `--namespace k8s-namespace-sync-system --create-namespace`: Helm would create that namespace first, and the install then fails with `namespaces "k8s-namespace-sync-system" already exists`.
 
 For full Helm chart options, see [Helm README](docs/HELM.md).
 
