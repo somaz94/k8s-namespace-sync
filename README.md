@@ -330,12 +330,27 @@ kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/m
 - `exclude` list takes precedence over `targetNamespaces`
 - Changes in source resources are automatically detected and synced in real-time
 - Deleting a resource from the source namespace removes its synced copies from the target namespaces
-- Labels and annotations from the source resources are preserved in synced resources
+- Labels and annotations from the source resources are preserved in synced resources, except keys under `kubernetes.io/` and `kubectl.kubernetes.io/` (such as `kubectl.kubernetes.io/last-applied-configuration`), which describe the source object itself
 - When the NamespaceSync CR is deleted, all synced resources are automatically cleaned up
-- Deletion only touches copies the controller created, identified by the `namespacesync.nsync.dev/source-namespace` and `namespacesync.nsync.dev/source-name` annotations. A same-named object it never synced, such as one a resource filter excluded, is left in place. Syncing still overwrites a same-named object, which from then on counts as a synced copy
-- Changing `spec.sourceNamespace` leaves the copies synced from the old source in place, since they no longer match the new source; delete them by hand if they are no longer needed
+- Deletion only touches copies the controller created, identified by the `namespacesync.nsync.dev/source-namespace` and `namespacesync.nsync.dev/source-name` annotations. A same-named object it never synced, such as one a resource filter excluded, is left in place. Syncing still overwrites a same-named object that no other NamespaceSync owns, which from then on counts as a synced copy
+- Deleting a NamespaceSync keeps a copy that another NamespaceSync still syncs from the same source into that namespace, and an object another NamespaceSync reads as its source
+- NamespaceSyncs that sync the same name into the same namespace do not overwrite each other; see [Overlapping NamespaceSyncs](#overlapping-namespacesyncs)
+- `spec.sourceNamespace` cannot be changed after creation. To sync from another namespace, delete the NamespaceSync, whose finalizer removes the old copies, and create a new one
 - Finalizer ensures proper cleanup of synced resources before CR deletion
 - The controller performs periodic reconciliation (default: every 5 minutes) to catch any external drift, ensuring resources remain in sync even if events are missed. The interval is configurable via the `RECONCILE_INTERVAL` environment variable (e.g., `RECONCILE_INTERVAL=10m`)
+
+<br/>
+
+### Overlapping NamespaceSyncs
+
+When several NamespaceSyncs sync the same name into the same namespace:
+- A namespace a NamespaceSync reaches only because its `targetNamespaces` is empty never receives an object another NamespaceSync reads as its source, or a copy another NamespaceSync still syncs from a different source namespace
+- A namespace listed in `targetNamespaces` is treated as intent. The NamespaceSync keeps its own copy there even when another NamespaceSync reads that copy as its source, so syncs can chain (`a` to `b`, then `b` to `c`), and it takes over a copy from a NamespaceSync that reaches the namespace only by default
+- An object created by hand that another NamespaceSync reads as its source is never overwritten
+- When two NamespaceSyncs both list the namespace, the copy written first stays
+- A skipped object is listed in `status.failedNamespaces` with a `SyncConflict` event, and the other resources in that namespace still sync. A copy whose source no NamespaceSync syncs any more is taken over
+- The protection lasts only while the other NamespaceSync exists, so while it is deleted and recreated, a NamespaceSync with an empty `targetNamespaces` can overwrite its source
+- One NamespaceSync's spec can block another's writes, so give NamespaceSync edit rights only to people trusted with every namespace it can reach
 
 <br/>
 
@@ -348,6 +363,7 @@ The controller emits Kubernetes events on NamespaceSync resources to provide vis
 | Normal | `SyncComplete` | Emitted after resources are successfully synced to target namespaces |
 | Warning | `SyncFailed` | Emitted when sync fails for one or more target namespaces |
 | Warning | `ValidationFailed` | Emitted when the NamespaceSync spec fails validation |
+| Warning | `SyncConflict` | Emitted when a sync skips an object another NamespaceSync owns (see Sync Behavior) |
 | Normal | `CleanupComplete` | Emitted after synced resources are successfully cleaned up during deletion |
 | Warning | `CleanupFailed` | Emitted when cleanup of synced resources fails during deletion |
 
@@ -385,6 +401,7 @@ The controller sets a `Ready` condition on each NamespaceSync resource to reflec
 | `SyncComplete` | `True` | All target namespaces were synced successfully |
 | `PartialSync` | `True` | Some target namespaces were synced, but others failed |
 | `SyncFailed` | `False` | All target namespaces failed to sync |
+| `InvalidSpec` | `False` | The spec failed validation; the message holds the error |
 
 You can inspect the condition with:
 ```bash
@@ -400,7 +417,7 @@ The controller exposes the following Prometheus metrics:
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
 | `namespacesync_sync_success_total` | Counter | `namespace`, `resource_type` | Number of successful resource synchronizations |
-| `namespacesync_sync_failure_total` | Counter | `namespace`, `resource_type` | Number of failed resource synchronizations |
+| `namespacesync_sync_failure_total` | Counter | `namespace`, `resource_type` | Number of failed resource synchronizations, sync conflicts included |
 | `namespacesync_cleanup_success_total` | Counter | `namespace`, `resource_type` | Number of synced copies deleted during cleanup |
 | `namespacesync_cleanup_failure_total` | Counter | `namespace`, `resource_type` | Number of failed resource cleanups |
 | `namespacesync_sync_duration_seconds` | Histogram | `namespace`, `resource_type` | Duration of sync operations in seconds |
@@ -416,7 +433,7 @@ The controller exposes the following Prometheus metrics:
 - If both include and exclude patterns are specified, exclude takes precedence
 - Patterns are matched against resource names
 - Can be combined with namespace targeting and exclusion
-- A pattern that is not a valid glob (for example `[abc`) fails validation: the controller emits a `ValidationFailed` event and sets the Ready condition to `SyncFailed` instead of syncing
+- A pattern that is not a valid glob (for example `[abc`) fails validation: the controller emits a `ValidationFailed` event and sets the Ready condition to `False` with reason `InvalidSpec` instead of syncing
 
 <br/>
 
@@ -449,8 +466,9 @@ The CRD enforces the following rules at admission time. They are part of the CRD
 |---|---|
 | `spec.sourceNamespace` must be a non-empty DNS-1123 label (1–63 chars) | `spec.sourceNamespace in body should match ...` |
 | At least one of `spec.secretName` or `spec.configMapName` must be non-empty | `at least one secret or configmap must be specified` |
+| `spec.sourceNamespace` cannot change after creation | `sourceNamespace is immutable; delete and recreate the NamespaceSync to change it` |
 
-The controller keeps the same checks as a reconcile-time backstop, so a resource created before these rules existed still reports the error in its status instead of syncing nothing silently.
+The controller keeps the same checks, except immutability, as a reconcile-time backstop, so a resource created before these rules existed still reports the error in its status instead of syncing nothing silently.
 
 The controller also rejects resource filter patterns that are not valid globs. That check has no admission-time equivalent, so such a resource is accepted by `kubectl apply` and then reports the error in its status.
 
@@ -503,7 +521,7 @@ kubectl delete secret test-secret2
 2. Remove the NamespaceSync CR:
 
 ```bash
-kubectl delete namespacesync --all
+kubectl delete namespacesync --all -A
 ```
 
 3. Remove the controller:

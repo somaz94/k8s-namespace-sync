@@ -45,7 +45,7 @@ The following table lists the configurable parameters of the k8s-namespace-sync 
 | `image.repository` | Controller image repository | `somaz940/k8s-namespace-sync` |
 | `image.tag` | Controller image tag | `v0.4.2` |
 | `image.pullPolicy` | Image pull policy | `IfNotPresent` |
-| `imagePullSecrets` | Image pull secrets | `[]` |
+| `imagePullSecrets` | Image pull secrets (controller and CRD cleanup Job) | `[]` |
 | `serviceAccount.create` | Create ServiceAccount | `true` |
 | `serviceAccount.name` | ServiceAccount name | `k8s-namespace-sync-controller-manager` |
 | `serviceAccount.annotations` | ServiceAccount annotations | `{}` |
@@ -78,11 +78,13 @@ The following table lists the configurable parameters of the k8s-namespace-sync 
 | `rbac.create` | Create RBAC resources | `true` |
 | `crds.create` | With `crds.remove`, enables the pre-delete Job that deletes the CRD. The CRD itself always installs from `crds/` (skip with `--skip-crds`) | `true` |
 | `crds.remove` | Delete the CRD, and every NamespaceSync with it, on uninstall (requires `crds.create`) | `true` |
+| `crds.cleanupImage.repository` | Image for the pre-delete Job that deletes the CRD; it must have `kubectl` on `PATH` | `registry.k8s.io/kubectl` |
+| `crds.cleanupImage.tag` | Tag of that image | see `values.yaml` |
 | `metrics.enabled` | Create the metrics Service (the manager serves `/metrics` either way); `helm test` checks this Service | `true` |
 | `metrics.service.port` | Metrics service port | `8443` |
 | `metrics.service.annotations` | Metrics service annotations | `{}` |
-| `nodeSelector` | Node selector | `{}` |
-| `tolerations` | Tolerations | `[]` |
+| `nodeSelector` | Node selector (controller and CRD cleanup Job) | `{}` |
+| `tolerations` | Tolerations (controller and CRD cleanup Job) | `[]` |
 | `affinity` | Affinity rules | `{}` |
 | `customresource.basic.enabled` | Enable basic sync configuration | `false` |
 | `customresource.basic.name` | Basic sync configuration name | `namespacesync-basic` |
@@ -178,9 +180,15 @@ helm install k8s-namespace-sync k8s-namespace-sync/k8s-namespace-sync \
 
 The value accepts Go duration strings (e.g., `5m`, `10m`, `1h`).
 
+<br/>
+
 ## Custom Resource Configuration
 
-The chart supports creating different types of NamespaceSync resources during installation. You can enable and configure them in your values file:
+The chart supports creating different types of NamespaceSync resources during installation. You can enable and configure them in your values file.
+
+`sourceNamespace` cannot change once a NamespaceSync exists, so changing `customresource.<name>.sourceNamespace` makes `helm upgrade` fail. Set `enabled: false` and upgrade, then enable it again with the new source.
+
+<br/>
 
 ### Basic Sync
 ```yaml
@@ -279,13 +287,15 @@ spec:
     - test-secret
 ```
 
+<br/>
+
 ## Uninstalling the Chart
 
 To properly uninstall the chart and its resources:
 
 1. First, delete all NamespaceSync resources:
 ```bash
-kubectl delete namespacesync --all
+kubectl delete namespacesync --all -A
 ```
 
 2. Then, uninstall the Helm chart:
@@ -293,14 +303,26 @@ kubectl delete namespacesync --all
 helm delete k8s-namespace-sync
 ```
 
+<br/>
+
 ## Upgrading the Chart
 
-To upgrade the chart:
+Helm installs the CRD from `crds/` only on the first install and never updates it, so apply the CRD of the target version first (use the `oci://` reference instead if you installed from the OCI registry):
 ```bash
-helm upgrade k8s-namespace-sync k8s-namespace-sync/k8s-namespace-sync
+helm show crds k8s-namespace-sync/k8s-namespace-sync --version <chart-version> \
+  | kubectl apply --server-side --force-conflicts -f -
 ```
 
+Then upgrade the chart:
+```bash
+helm upgrade k8s-namespace-sync k8s-namespace-sync/k8s-namespace-sync --version <chart-version>
+```
+
+<br/>
+
 ## Troubleshooting
+
+<br/>
 
 ### Verify Installation
 ```bash

@@ -52,7 +52,8 @@ make bump-version VERSION=vX.Y.Z  # Bump version across all files
 - **Version bump**: `make bump-version` auto-updates all files (Makefile, Chart.yaml, values.yaml, README, docs, dist/install.yaml). No manual edits needed.
 - **Finalizer**: Uses `namespacesync.nsync.dev/finalizer` for cleanup — do not skip finalizer logic on deletion.
 - **Reconcile interval**: Configurable via `RECONCILE_INTERVAL` env var (default `5m`). The variable is in `internal/controller/namespacesync_controller.go` (`ReconcileInterval`), read in `cmd/main.go`.
-- **Status conditions**: `Ready` condition uses three reasons — `SyncComplete` (all succeeded), `PartialSync` (some failed), `SyncFailed` (all failed).
+- **Status conditions**: `Ready` condition uses four reasons — `SyncComplete` (all succeeded), `PartialSync` (some failed), `SyncFailed` (all failed), `InvalidSpec` (spec failed validation).
+- **Sync conflicts**: A namespace reached by default (empty `targetNamespaces`) never gets another NamespaceSync's source object or a copy a live peer syncs from another source. An explicitly listed target keeps its own copy there (syncs chain) and outranks default peers; a hand-authored peer source is never overwritten. Skips are reported as `sync conflict` in `failedNamespaces` (`internal/controller/conflicts.go`).
 
 <br/>
 

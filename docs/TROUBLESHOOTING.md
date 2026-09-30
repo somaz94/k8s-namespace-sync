@@ -32,11 +32,16 @@ kubectl delete crd namespacesyncs.sync.nsync.dev --ignore-not-found
 kubectl delete job -n k8s-namespace-sync-system -l app.kubernetes.io/name=k8s-namespace-sync --ignore-not-found
 ```
 
+<br/>
+
 ### Helm uninstall hangs
 
-The pre-delete hook job is failing repeatedly.
+The pre-delete hook Job, which deletes the CRD, has not finished. Charts before 0.5.0 gave it no permission to watch the CRD, so the `kubectl delete` inside it waited forever. A release keeps the hook it was installed or upgraded with, so upgrade to a newer chart before uninstalling. Otherwise look at the Job's pod: an image it cannot pull, a pod stuck in Pending, or a stopped controller that leaves NamespaceSync finalizers in place all keep it running.
 
 ```bash
+# Inspect the hook Job; a failed pod is kept for its logs
+kubectl logs -n k8s-namespace-sync-system job/<release-name>-k8s-namespace-sync-crd-cleanup
+
 # Cancel and force uninstall
 helm uninstall <release-name> --no-hooks
 
@@ -89,9 +94,11 @@ kubectl logs -n k8s-namespace-sync-system deployment/k8s-namespace-sync-controll
 # Auto-excluded: kube-system, kube-public, kube-node-lease, default, k8s-namespace-sync-system
 ```
 
+<br/>
+
 ### Synced resources not cleaned up after CR deletion
 
-Cleanup deletes only copies that carry the controller's `namespacesync.nsync.dev/source-*` annotations. An object with the same name that the controller never synced is left in place on purpose.
+Cleanup deletes only copies that carry the controller's `namespacesync.nsync.dev/source-*` annotations. An object with the same name that the controller never synced is left in place on purpose, and so is a copy that another NamespaceSync still syncs from the same source or an object another NamespaceSync reads as its source.
 
 ```bash
 # Check whether the object is a synced copy
@@ -108,12 +115,14 @@ kubectl delete configmap <name> -n <target-ns>
 kubectl delete secret <name> -n <target-ns>
 ```
 
+<br/>
+
 ### Resource filter not working as expected
 
 - Patterns use glob matching (e.g., `*2` matches `test-configmap2`)
 - Exclude takes precedence over include
 - Namespace exclude and resource filter are independent
-- A pattern that is not a valid glob (e.g., `[abc`) fails validation; look for a `ValidationFailed` event on the NamespaceSync
+- A pattern that is not a valid glob (e.g., `[abc`) fails validation: the Ready condition shows reason `InvalidSpec` with the error, and a `ValidationFailed` event is recorded
 
 ```bash
 # Verify filter configuration
@@ -122,7 +131,39 @@ kubectl get namespacesync <name> -o jsonpath='{.spec.resourceFilters}'
 
 <br/>
 
+### A namespace is listed in `failedNamespaces` with `sync conflict`
+
+Another NamespaceSync owns the object: it reads that object as its source, or it still syncs that copy from a different source namespace. The message names the other NamespaceSync, and the README section "Overlapping NamespaceSyncs" has the rules. To resolve it, list the namespace in `targetNamespaces` of the NamespaceSync that should own the copy, narrow the other one with `targetNamespaces` or `exclude`, or delete one of them. A change to the other NamespaceSync does not retrigger this one, so the conflict can take up to the reconcile interval to clear.
+
+```bash
+# See which namespaces conflict and why
+kubectl get namespacesync <name> -o jsonpath='{.status.failedNamespaces}'
+kubectl get events --field-selector reason=SyncConflict
+```
+
+<br/>
+
+### `sourceNamespace is immutable` on apply
+
+`spec.sourceNamespace` cannot change after creation. Delete the NamespaceSync, whose finalizer removes the copies it made, and create a new one with the new source.
+
+<br/>
+
+### Copies left behind by an earlier `sourceNamespace` change
+
+Before v0.5.0 the source could be changed in place, which left the copies from the old source behind; cleanup never matches them. Find them by their source annotation and delete the ones you no longer need:
+
+```bash
+kubectl get secrets,configmaps -A -o json | jq -r '.items[]
+  | select(.metadata.annotations["namespacesync.nsync.dev/source-namespace"] == "<old-source>")
+  | "\(.kind) \(.metadata.namespace)/\(.metadata.name)"'
+```
+
+<br/>
+
 ## CI/CD Issues
+
+<br/>
 
 ### `git push` rejected (remote ahead)
 
