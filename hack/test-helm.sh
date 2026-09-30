@@ -133,13 +133,13 @@ fi
 if kubectl get clusterrole -l app.kubernetes.io/name=k8s-namespace-sync 2>/dev/null | grep -q .; then
   log_pass "ClusterRole created"
 else
-  log_pass "ClusterRole created (label check skipped)"
+  log_fail "ClusterRole not found"
 fi
 
 if kubectl get svc -n "${NAMESPACE}" 2>/dev/null | grep -q metrics; then
   log_pass "Metrics service created"
 else
-  log_pass "Service created"
+  log_fail "Metrics service not found"
 fi
 
 log_info "Creating test namespaces and resources..."
