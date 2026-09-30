@@ -21,7 +21,12 @@ spec:
       image: busybox:1.38.0
       command: ['sh', '-c']
       args:
-        - for i in 1 2 3 4 5 6 7 8 9 10; do nc -z -w 3 {{ include "k8s-namespace-sync.metricsServiceName" . }}.{{ .Values.namespace }}.svc {{ .Values.metrics.service.port }} && exit 0; sleep 2; done; exit 1
+        - |
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            nc -z -w 2 {{ include "k8s-namespace-sync.metricsServiceName" . }}.{{ .Values.namespace }}.svc {{ .Values.metrics.service.port }} && exit 0
+            [ "$i" -lt 10 ] && sleep 2
+          done
+          exit 1
       securityContext:
         allowPrivilegeEscalation: false
         readOnlyRootFilesystem: true
