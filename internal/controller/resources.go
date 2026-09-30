@@ -57,7 +57,7 @@ func (r *NamespaceSyncReconciler) handleDeletionAndStatus(ctx context.Context, n
 }
 
 // createOrUpdateResource creates desired, or updates existing to match it; a copy whose data is unchanged keeps its last-sync stamp.
-// guard can refuse to touch an existing object; updateFields copies resource-specific data from desired to existing.
+// guard can refuse to touch an existing object with a sync conflict; updateFields copies resource-specific data from desired to existing.
 func createOrUpdateResource[T client.Object](
 	r *NamespaceSyncReconciler,
 	ctx context.Context,
@@ -92,7 +92,7 @@ func createOrUpdateResource[T client.Object](
 	}
 
 	if err := guard(existing); err != nil {
-		recordSyncFailure(desired.GetNamespace(), resourceType)
+		recordSyncConflict(desired.GetNamespace(), resourceType)
 		return err
 	}
 

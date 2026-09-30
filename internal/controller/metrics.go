@@ -22,6 +22,14 @@ var (
 		[]string{"namespace", "resource_type"},
 	)
 
+	syncConflictCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "namespacesync_sync_conflict_total",
+			Help: "Number of resource synchronizations skipped because another owner holds the object",
+		},
+		[]string{"namespace", "resource_type"},
+	)
+
 	cleanupSuccessCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "namespacesync_cleanup_success_total",
@@ -60,6 +68,7 @@ func init() {
 	metrics.Registry.MustRegister(
 		syncSuccessCounter,
 		syncFailureCounter,
+		syncConflictCounter,
 		cleanupSuccessCounter,
 		cleanupFailureCounter,
 		syncDurationHistogram,
@@ -75,6 +84,10 @@ func recordSyncSuccess(namespace, resourceType string) {
 
 func recordSyncFailure(namespace, resourceType string) {
 	syncFailureCounter.WithLabelValues(namespace, resourceType).Inc()
+}
+
+func recordSyncConflict(namespace, resourceType string) {
+	syncConflictCounter.WithLabelValues(namespace, resourceType).Inc()
 }
 
 func recordCleanupSuccess(namespace, resourceType string) {

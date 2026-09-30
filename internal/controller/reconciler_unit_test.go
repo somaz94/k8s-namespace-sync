@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	syncv1 "github.com/somaz94/k8s-namespace-sync/api/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -1419,7 +1420,7 @@ func TestCleanupResource_MissingCopyIsNotCountedAsCleanup(t *testing.T) {
 	c := fake.NewClientBuilder().WithScheme(scheme).Build()
 	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
 
-	before := counterValue(t, "missing-copy-ns", "secret")
+	before := counterValue(t, cleanupSuccessCounter, "missing-copy-ns", "secret")
 	errs := r.cleanupResource(context.Background(), "src-ns", "missing-copy-ns", []string{"absent"}, "secret",
 		func(name, namespace string) client.Object {
 			return &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
@@ -1427,15 +1428,15 @@ func TestCleanupResource_MissingCopyIsNotCountedAsCleanup(t *testing.T) {
 	if len(errs) != 0 {
 		t.Errorf("expected no errors for a missing copy, got %v", errs)
 	}
-	if after := counterValue(t, "missing-copy-ns", "secret"); after != before {
+	if after := counterValue(t, cleanupSuccessCounter, "missing-copy-ns", "secret"); after != before {
 		t.Errorf("expected cleanup success counter unchanged, got %v -> %v", before, after)
 	}
 }
 
-func counterValue(t *testing.T, namespace, resourceType string) float64 {
+func counterValue(t *testing.T, counter *prometheus.CounterVec, namespace, resourceType string) float64 {
 	t.Helper()
 	var m dto.Metric
-	if err := cleanupSuccessCounter.WithLabelValues(namespace, resourceType).Write(&m); err != nil {
+	if err := counter.WithLabelValues(namespace, resourceType).Write(&m); err != nil {
 		t.Fatalf("read counter: %v", err)
 	}
 	return m.GetCounter().GetValue()
@@ -1676,9 +1677,16 @@ func TestReconcile_LeavesAnotherSyncsSourceObject(t *testing.T) {
 		Build()
 	rec := &fakeRecorder{}
 	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme, Recorder: rec}
+	conflicts, failures := counterValue(t, syncConflictCounter, "b-src", "secret"), counterValue(t, syncFailureCounter, "b-src", "secret")
 
 	reconcileSync(t, r, syncA)
 
+	if got := counterValue(t, syncConflictCounter, "b-src", "secret") - conflicts; got != 1 {
+		t.Errorf("expected one sync conflict counted, got %v", got)
+	}
+	if got := counterValue(t, syncFailureCounter, "b-src", "secret") - failures; got != 0 {
+		t.Errorf("expected the conflict to stay out of the failure count, got %v", got)
+	}
 	if got := string(getSharedSecret(t, c, "b-src").Data["key"]); got != fromB {
 		t.Errorf("expected sync-b's source to keep its data, got %q", got)
 	}
@@ -1720,11 +1728,18 @@ func TestReconcile_LeavesCopyAnotherSyncOwns(t *testing.T) {
 		WithStatusSubresource(syncA, syncB).
 		Build()
 	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+	conflicts, failures := counterValue(t, syncConflictCounter, "tgt", "secret"), counterValue(t, syncFailureCounter, "tgt", "secret")
 
 	reconcileSync(t, r, syncA)
 
 	if got := string(getSharedSecret(t, c, "tgt").Data["key"]); got != fromB {
 		t.Errorf("expected sync-b's copy to be left alone, got %q", got)
+	}
+	if got := counterValue(t, syncConflictCounter, "tgt", "secret") - conflicts; got != 1 {
+		t.Errorf("expected one sync conflict counted, got %v", got)
+	}
+	if got := counterValue(t, syncFailureCounter, "tgt", "secret") - failures; got != 0 {
+		t.Errorf("expected the conflict to stay out of the failure count, got %v", got)
 	}
 	if msg := failedNamespaces(t, c, syncA)["tgt"]; !strings.Contains(msg, "is synced from namespace b-src by NamespaceSync b-src/sync-b") {
 		t.Errorf("expected tgt to be reported as a conflict, got %q", msg)
@@ -2007,9 +2022,13 @@ func TestReconcile_ReportsEveryConflictInANamespace(t *testing.T) {
 		WithStatusSubresource(syncA, syncB).
 		Build()
 	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+	conflicts := counterValue(t, syncConflictCounter, "b-src", "configmap")
 
 	reconcileSync(t, r, syncA)
 
+	if got := counterValue(t, syncConflictCounter, "b-src", "configmap") - conflicts; got != 1 {
+		t.Errorf("expected one configmap sync conflict counted, got %v", got)
+	}
 	msg := failedNamespaces(t, c, syncA)["b-src"]
 	for _, want := range []string{"secret b-src/shared", "configmap b-src/cfg", "; "} {
 		if !strings.Contains(msg, want) {

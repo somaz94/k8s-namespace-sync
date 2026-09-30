@@ -84,7 +84,7 @@ func (r *NamespaceSyncReconciler) syncSecret(ctx context.Context, sourceNamespac
 
 	if !explicit {
 		if err := r.sourceConflict(peers, "secret", targetNamespace, secretName); err != nil {
-			recordSyncFailure(targetNamespace, "secret")
+			recordSyncConflict(targetNamespace, "secret")
 			return err
 		}
 	}
@@ -128,7 +128,7 @@ func (r *NamespaceSyncReconciler) syncConfigMap(ctx context.Context, sourceNames
 
 	if !explicit {
 		if err := r.sourceConflict(peers, "configmap", targetNamespace, configMapName); err != nil {
-			recordSyncFailure(targetNamespace, "configmap")
+			recordSyncConflict(targetNamespace, "configmap")
 			return err
 		}
 	}

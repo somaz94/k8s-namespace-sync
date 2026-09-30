@@ -421,7 +421,8 @@ The controller exposes the following Prometheus metrics:
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
 | `namespacesync_sync_success_total` | Counter | `namespace`, `resource_type` | Number of successful resource synchronizations |
-| `namespacesync_sync_failure_total` | Counter | `namespace`, `resource_type` | Number of failed resource synchronizations, sync conflicts included |
+| `namespacesync_sync_failure_total` | Counter | `namespace`, `resource_type` | Number of failed resource synchronizations |
+| `namespacesync_sync_conflict_total` | Counter | `namespace`, `resource_type` | Number of resource synchronizations skipped as a sync conflict (see [Overlapping NamespaceSyncs](#overlapping-namespacesyncs)) |
 | `namespacesync_cleanup_success_total` | Counter | `namespace`, `resource_type` | Number of synced copies deleted during cleanup |
 | `namespacesync_cleanup_failure_total` | Counter | `namespace`, `resource_type` | Number of failed resource cleanups |
 | `namespacesync_sync_duration_seconds` | Histogram | `namespace`, `resource_type` | Duration of sync operations in seconds |
