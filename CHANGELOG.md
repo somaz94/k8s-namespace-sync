@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.4.2](https://github.com/somaz94/k8s-namespace-sync/compare/v0.4.1...v0.4.2) (2026-09-30)
+
+### Bug Fixes
+
+- **helm:** drop the chart icon that points at a missing file ([cb04557](https://github.com/somaz94/k8s-namespace-sync/commit/cb045573e6c0c5bfae5df03f364120f4cf49437b))
+- **helm:** point the connection test at the metrics service ([20ad18b](https://github.com/somaz94/k8s-namespace-sync/commit/20ad18b75995da0b5c417569a1e5729a64b8eacb))
+- stop the reconcile loop that rewrote unchanged copies ([0491363](https://github.com/somaz94/k8s-namespace-sync/commit/049136356362ba201dc29c30178f7a9bab6c1c58))
+
+### Documentation
+
+- drop the namespace flags that break the documented install ([794c71b](https://github.com/somaz94/k8s-namespace-sync/commit/794c71b09affa561da4a3dc1e29728ccca047999))
+
+### Tests
+
+- run helm test in the chart test script ([e6f0eeb](https://github.com/somaz94/k8s-namespace-sync/commit/e6f0eebd08f98b03986882c443881ba804e338be))
+
+### Chores
+
+- **release:** bump version to v0.4.2 ([e43a74b](https://github.com/somaz94/k8s-namespace-sync/commit/e43a74b8f486756fe004ca3c1b9dbd993bc44481))
+
+### Contributors
+
+- somaz
+
+<br/>
+
 ## [v0.4.1](https://github.com/somaz94/k8s-namespace-sync/compare/v0.4.0...v0.4.1) (2026-09-30)
 
 ### Bug Fixes
