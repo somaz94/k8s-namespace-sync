@@ -26,8 +26,8 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-// updateStatus updates the status of the NamespaceSync resource. conflicted lists the failedNamespaces
-// entries that hold nothing but sync conflicts.
+// updateStatus records the sync result; conflicted lists the failedNamespaces entries that hold nothing but
+// sync conflicts.
 func (r *NamespaceSyncReconciler) updateStatus(ctx context.Context, namespaceSync *syncv1.NamespaceSync, syncedNamespaces []string, failedNamespaces map[string]string, conflicted []string) error {
 	log := log.FromContext(ctx)
 
@@ -46,6 +46,12 @@ func (r *NamespaceSyncReconciler) updateStatus(ctx context.Context, namespaceSyn
 		latest.Status.SyncedNamespaces = syncedNamespaces
 		latest.Status.FailedNamespaces = failedNamespaces
 		latest.Status.ObservedGeneration = latest.Generation
+
+		failures := len(failedNamespaces) - len(conflicted)
+		var skipped string
+		if len(conflicted) > 0 {
+			skipped = fmt.Sprintf(", skipped conflicting objects in %d", len(conflicted))
+		}
 
 		var readyCondition metav1.Condition
 		switch {
@@ -67,7 +73,7 @@ func (r *NamespaceSyncReconciler) updateStatus(ctx context.Context, namespaceSyn
 				ObservedGeneration: latest.Generation,
 				LastTransitionTime: metav1.NewTime(time.Now()),
 				Reason:             "SyncConflict",
-				Message:            fmt.Sprintf("Synced to %d namespaces, skipped conflicting objects in %d namespaces", len(syncedNamespaces), len(conflicted)),
+				Message:            fmt.Sprintf("Synced to %d namespaces, and to %d more except for conflicting objects", len(syncedNamespaces), len(conflicted)),
 			}
 		case len(failedNamespaces) > 0 && len(syncedNamespaces) > 0:
 			// Ready stays True on partial failure; Reason PartialSync marks it.
@@ -77,7 +83,7 @@ func (r *NamespaceSyncReconciler) updateStatus(ctx context.Context, namespaceSyn
 				ObservedGeneration: latest.Generation,
 				LastTransitionTime: metav1.NewTime(time.Now()),
 				Reason:             "PartialSync",
-				Message:            fmt.Sprintf("Synced to %d namespaces, failed to sync to %d namespaces", len(syncedNamespaces), len(failedNamespaces)),
+				Message:            fmt.Sprintf("Synced to %d namespaces, failed to sync to %d namespaces%s", len(syncedNamespaces), failures, skipped),
 			}
 		case len(syncedNamespaces) == 0 && len(failedNamespaces) > 0:
 			readyCondition = metav1.Condition{
@@ -86,7 +92,7 @@ func (r *NamespaceSyncReconciler) updateStatus(ctx context.Context, namespaceSyn
 				ObservedGeneration: latest.Generation,
 				LastTransitionTime: metav1.NewTime(time.Now()),
 				Reason:             "SyncFailed",
-				Message:            fmt.Sprintf("Failed to sync to %d namespaces", len(failedNamespaces)),
+				Message:            fmt.Sprintf("Failed to sync to %d namespaces%s", failures, skipped),
 			}
 		default:
 			readyCondition = metav1.Condition{

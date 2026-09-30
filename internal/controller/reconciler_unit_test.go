@@ -986,17 +986,22 @@ func TestUpdateStatus_PartialSync(t *testing.T) {
 func TestUpdateStatus_Conflicts(t *testing.T) {
 	const conflict, failure = "sync conflict: secret ns2/s is the source of NamespaceSync ns2/other", "connection refused"
 	tests := []struct {
-		name       string
-		synced     []string
-		failed     map[string]string
-		conflicted []string
-		wantStatus metav1.ConditionStatus
-		wantReason string
+		name        string
+		synced      []string
+		failed      map[string]string
+		conflicted  []string
+		wantStatus  metav1.ConditionStatus
+		wantReason  string
+		wantMessage string
 	}{
-		{"conflicts next to synced namespaces", []string{"ns1"}, map[string]string{"ns2": conflict}, []string{"ns2"}, metav1.ConditionTrue, "SyncConflict"},
-		{"conflicts only", nil, map[string]string{"ns2": conflict}, []string{"ns2"}, metav1.ConditionTrue, "SyncConflict"},
-		{"conflict and failure", []string{"ns1"}, map[string]string{"ns2": conflict, "ns3": failure}, []string{"ns2"}, metav1.ConditionTrue, "PartialSync"},
-		{"conflict and failure, nothing synced", nil, map[string]string{"ns2": conflict, "ns3": failure}, []string{"ns2"}, metav1.ConditionFalse, "SyncFailed"},
+		{"conflicts next to synced namespaces", []string{"ns1"}, map[string]string{"ns2": conflict}, []string{"ns2"},
+			metav1.ConditionTrue, "SyncConflict", "Synced to 1 namespaces, and to 1 more except for conflicting objects"},
+		{"conflicts only", nil, map[string]string{"ns2": conflict}, []string{"ns2"},
+			metav1.ConditionTrue, "SyncConflict", "Synced to 0 namespaces, and to 1 more except for conflicting objects"},
+		{"conflict and failure", []string{"ns1"}, map[string]string{"ns2": conflict, "ns3": failure}, []string{"ns2"},
+			metav1.ConditionTrue, "PartialSync", "Synced to 1 namespaces, failed to sync to 1 namespaces, skipped conflicting objects in 1"},
+		{"conflict and failure, nothing synced", nil, map[string]string{"ns2": conflict, "ns3": failure}, []string{"ns2"},
+			metav1.ConditionFalse, "SyncFailed", "Failed to sync to 1 namespaces, skipped conflicting objects in 1"},
 	}
 
 	for _, tt := range tests {
@@ -1015,8 +1020,8 @@ func TestUpdateStatus_Conflicts(t *testing.T) {
 				t.Fatalf("get NamespaceSync: %v", err)
 			}
 			cond := meta.FindStatusCondition(updated.Status.Conditions, conditionTypeReady)
-			if cond == nil || cond.Status != tt.wantStatus || cond.Reason != tt.wantReason {
-				t.Errorf("expected Ready %s/%s, got %+v", tt.wantStatus, tt.wantReason, cond)
+			if cond == nil || cond.Status != tt.wantStatus || cond.Reason != tt.wantReason || cond.Message != tt.wantMessage {
+				t.Errorf("expected Ready %s/%s %q, got %+v", tt.wantStatus, tt.wantReason, tt.wantMessage, cond)
 			}
 		})
 	}

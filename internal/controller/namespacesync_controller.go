@@ -163,7 +163,7 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		// One event per reconcile: a lasting conflict per namespace would drain the recorder's spam-filter budget.
 		if len(conflicted) > 0 {
 			r.Recorder.Eventf(namespacesync, corev1.EventTypeWarning, "SyncConflict",
-				"Skipped objects another NamespaceSync owns in %d namespaces (%s); see status.failedNamespaces",
+				"Skipped objects another owner holds in %d namespaces (%s); see status.failedNamespaces",
 				len(conflicted), strings.Join(conflicted[:min(len(conflicted), 5)], ", "))
 		}
 		if failed := len(failedNamespaces) - len(conflicted); failed > 0 {

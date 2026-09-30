@@ -23,7 +23,7 @@ func (r *NamespaceSyncReconciler) syncResourceList(ctx context.Context, names []
 		}
 		switch err := syncFn(name); {
 		case errors.Is(err, errSyncConflict):
-			log.Info("Skipping resource owned by another NamespaceSync", "resourceType", resourceType, "name", name, "targetNamespace", targetNamespace, "reason", err.Error())
+			log.Info("Skipping resource another owner holds", "resourceType", resourceType, "name", name, "targetNamespace", targetNamespace, "reason", err.Error())
 			conflicts = append(conflicts, err)
 		case err != nil:
 			log.Error(err, "Failed to sync resource", "resourceType", resourceType, "name", name, "targetNamespace", targetNamespace)
