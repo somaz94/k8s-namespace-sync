@@ -93,6 +93,34 @@ func (r *NamespaceSyncReconciler) updateStatus(ctx context.Context, namespaceSyn
 	})
 }
 
+// updateInvalidSpecStatus marks the NamespaceSync not Ready with the validation error as the message.
+// It clears the per-namespace results, since no sync ran for this spec; earlier versions also left a
+// pseudo "validation" entry in failedNamespaces.
+func (r *NamespaceSyncReconciler) updateInvalidSpecStatus(ctx context.Context, namespaceSync *syncv1.NamespaceSync, validationErr error) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		latest := &syncv1.NamespaceSync{}
+		if err := r.Get(ctx, client.ObjectKeyFromObject(namespaceSync), latest); err != nil {
+			return err
+		}
+
+		// The generation that failed validation, which a spec fixed since then no longer has.
+		generation := namespaceSync.Generation
+		latest.Status.SyncedNamespaces = nil
+		latest.Status.FailedNamespaces = nil
+		latest.Status.ObservedGeneration = generation
+		meta.SetStatusCondition(&latest.Status.Conditions, metav1.Condition{
+			Type:               "Ready",
+			Status:             metav1.ConditionFalse,
+			ObservedGeneration: generation,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Reason:             "InvalidSpec",
+			Message:            validationErr.Error(),
+		})
+
+		return r.Status().Update(ctx, latest)
+	})
+}
+
 // validateNamespaceSync validates the NamespaceSync resource
 func validateNamespaceSync(namespaceSync *syncv1.NamespaceSync) error {
 	if namespaceSync.Spec.SourceNamespace == "" {

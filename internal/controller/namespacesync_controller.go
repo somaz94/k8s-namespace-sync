@@ -84,8 +84,7 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if r.Recorder != nil {
 			r.Recorder.Event(namespacesync, corev1.EventTypeWarning, "ValidationFailed", err.Error())
 		}
-		failedNamespaces := map[string]string{"validation": err.Error()}
-		if updateErr := r.updateStatus(ctx, namespacesync, nil, failedNamespaces); updateErr != nil {
+		if updateErr := r.updateInvalidSpecStatus(ctx, namespacesync, err); updateErr != nil {
 			log.Error(updateErr, "Failed to update status after validation error")
 		}
 		// Retrying cannot fix a bad spec; an edit to it triggers the next reconcile.

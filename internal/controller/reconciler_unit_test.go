@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
@@ -1424,6 +1425,11 @@ func TestReconcile_MalformedFilterIsTerminal(t *testing.T) {
 				ConfigMaps: &syncv1.ResourceFilter{Include: []string{"app-*[0-9"}},
 			},
 		},
+		// Left over from an earlier valid sync, plus the pseudo entry earlier versions wrote for a validation failure.
+		Status: syncv1.NamespaceSyncStatus{
+			SyncedNamespaces: []string{"old-target"},
+			FailedNamespaces: map[string]string{"validation": "stale"},
+		},
 	}
 
 	c := fake.NewClientBuilder().
@@ -1443,6 +1449,22 @@ func TestReconcile_MalformedFilterIsTerminal(t *testing.T) {
 	}
 	if !slices.Contains(rec.events, "ValidationFailed") {
 		t.Errorf("expected a ValidationFailed event, got %v", rec.events)
+	}
+
+	var got syncv1.NamespaceSync
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "bad-glob", Namespace: "bg-src-ns"}, &got); err != nil {
+		t.Fatalf("get NamespaceSync: %v", err)
+	}
+	if len(got.Status.Conditions) == 0 {
+		t.Fatal("expected a Ready condition")
+	}
+	cond := got.Status.Conditions[0]
+	if cond.Status != metav1.ConditionFalse || cond.Reason != "InvalidSpec" || !strings.Contains(cond.Message, "invalid pattern") {
+		t.Errorf("expected Ready False/InvalidSpec carrying the validation error, got %s/%s %q", cond.Status, cond.Reason, cond.Message)
+	}
+	if len(got.Status.FailedNamespaces) != 0 || len(got.Status.SyncedNamespaces) != 0 {
+		t.Errorf("expected per-namespace results to be cleared for an invalid spec, got synced %v failed %v",
+			got.Status.SyncedNamespaces, got.Status.FailedNamespaces)
 	}
 }
 
