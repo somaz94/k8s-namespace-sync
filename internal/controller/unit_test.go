@@ -450,6 +450,9 @@ func TestKeepLastSync(t *testing.T) {
 		{"data differs", func(before, after *corev1.Secret) { after.Data["key"] = []byte("other") }, fresh},
 		{"type differs", func(before, after *corev1.Secret) { after.Type = corev1.SecretTypeTLS }, fresh},
 		{"no stored stamp", func(before, after *corev1.Secret) { delete(before.Annotations, AnnotationLastSync) }, fresh},
+		{"no annotations on the update", func(before, after *corev1.Secret) {
+			before.Annotations, after.Annotations = map[string]string{AnnotationLastSync: stored}, nil
+		}, stored},
 	}
 
 	for _, tt := range tests {
@@ -462,6 +465,15 @@ func TestKeepLastSync(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("leaves a map shared with after untouched", func(t *testing.T) {
+		before, after := secret(stored), secret(fresh)
+		shared := after.Annotations
+		keepLastSync(before, after)
+		if shared[AnnotationLastSync] != fresh {
+			t.Errorf("expected the shared map to keep %q, got %q", fresh, shared[AnnotationLastSync])
+		}
+	})
 
 	t.Run("leaves before untouched", func(t *testing.T) {
 		before, after := secret(stored), secret(fresh)

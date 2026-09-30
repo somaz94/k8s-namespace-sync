@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -56,8 +57,8 @@ func (r *NamespaceSyncReconciler) handleDeletionAndStatus(ctx context.Context, n
 	return ctrl.Result{}, nil
 }
 
-// createOrUpdateResource creates desired, or updates existing to match it; a copy whose data is unchanged keeps its last-sync stamp.
-// guard can refuse to touch an existing object with a sync conflict; updateFields copies resource-specific data from desired to existing.
+// createOrUpdateResource creates desired, or updates existing to match it. guard can refuse an existing object
+// with a sync conflict; updateFields copies resource-specific data from desired to existing.
 func createOrUpdateResource[T client.Object](
 	r *NamespaceSyncReconciler,
 	ctx context.Context,
@@ -92,7 +93,11 @@ func createOrUpdateResource[T client.Object](
 	}
 
 	if err := guard(existing); err != nil {
-		recordSyncConflict(desired.GetNamespace(), resourceType)
+		if errors.Is(err, errSyncConflict) {
+			recordSyncConflict(desired.GetNamespace(), resourceType)
+		} else {
+			recordSyncFailure(desired.GetNamespace(), resourceType)
+		}
 		return err
 	}
 
@@ -106,13 +111,18 @@ func createOrUpdateResource[T client.Object](
 		return nil
 	}
 
+	resourceVersion := existing.GetResourceVersion()
 	if err := r.Update(ctx, existing); err != nil {
 		log.Error(err, "Failed to update resource", "resourceType", resourceType)
 		recordSyncFailure(desired.GetNamespace(), resourceType)
 		return err
 	}
 
-	log.Info("Successfully updated resource", "resourceType", resourceType)
+	if existing.GetResourceVersion() == resourceVersion {
+		log.V(1).Info("Update left the resource unchanged, e.g. after a mutating admission", "resourceType", resourceType)
+	} else {
+		log.Info("Successfully updated resource", "resourceType", resourceType)
+	}
 	recordSyncSuccess(desired.GetNamespace(), resourceType)
 	return nil
 }
@@ -122,16 +132,20 @@ func createOrUpdateResource[T client.Object](
 // the sync strips, keeping the stamp is what lets the apiserver drop the write as a no-op.
 func keepLastSync(before, after client.Object) {
 	stamp, ok := before.GetAnnotations()[AnnotationLastSync]
-	if !ok || !equalIgnoringMetadata(before, after) {
+	if !ok || !equalIgnoringLabelsAndAnnotations(before, after) {
 		return
 	}
-	annotations := after.GetAnnotations()
+	// A clone, since after's map can be shared with the object it was copied from.
+	annotations := maps.Clone(after.GetAnnotations())
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
 	annotations[AnnotationLastSync] = stamp
 	after.SetAnnotations(annotations)
 }
 
-// equalIgnoringMetadata reports whether a and b differ at most in their labels and annotations.
-func equalIgnoringMetadata(a, b client.Object) bool {
+// equalIgnoringLabelsAndAnnotations reports whether a and b differ at most in their labels and annotations.
+func equalIgnoringLabelsAndAnnotations(a, b client.Object) bool {
 	a, b = a.DeepCopyObject().(client.Object), b.DeepCopyObject().(client.Object)
 	for _, obj := range []client.Object{a, b} {
 		obj.SetLabels(nil)

@@ -560,9 +560,9 @@ func TestReconcile_MetadataOnlyChangeKeepsLastSync(t *testing.T) {
 	const stamp = "2020-01-01T00:00:00Z"
 
 	ns := newSecretSync("meta-test", "meta-src", []string{"meta-tgt"}, "shared")
-	// The label a mutating admission would have added to the stored copy.
 	stored := sharedSecret("meta-tgt", fromA)
 	stored.ObjectMeta = managedCopyMeta("shared", "meta-tgt", "meta-src")
+	// The label a mutating admission would have added to the stored copy.
 	stored.Labels = map[string]string{injectedLabel: labelTrue}
 	stored.Annotations[AnnotationLastSync] = stamp
 
@@ -1263,6 +1263,27 @@ func TestCreateOrUpdateResource_GetError(t *testing.T) {
 		func(src, dst *corev1.Secret) {})
 	if err == nil {
 		t.Error("expected error from Get failure")
+	}
+}
+
+func TestCreateOrUpdateResource_GuardErrorIsAFailure(t *testing.T) {
+	scheme := newTestScheme()
+	existing := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "guarded", Namespace: "guard-ns"}}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existing).Build()
+	r := &NamespaceSyncReconciler{Client: c, Scheme: scheme}
+	failures, conflicts := counterValue(t, syncFailureCounter, "guard-ns", "secret"), counterValue(t, syncConflictCounter, "guard-ns", "secret")
+
+	err := createOrUpdateResource(r, context.Background(), existing.DeepCopy(), &corev1.Secret{}, "secret",
+		func(client.Object) error { return errors.New("guard failed") },
+		func(src, dst *corev1.Secret) {})
+	if err == nil {
+		t.Fatal("expected the guard error to surface")
+	}
+	if got := counterValue(t, syncFailureCounter, "guard-ns", "secret") - failures; got != 1 {
+		t.Errorf("expected a guard error other than a conflict to count as a failure, got %v", got)
+	}
+	if got := counterValue(t, syncConflictCounter, "guard-ns", "secret") - conflicts; got != 0 {
+		t.Errorf("expected no conflict counted, got %v", got)
 	}
 }
 
