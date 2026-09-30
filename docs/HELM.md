@@ -18,7 +18,7 @@ This Helm chart installs K8s Namespace Sync Controller on your Kubernetes cluste
 Install from the OCI registry (Helm 3.8+):
 ```bash
 helm install k8s-namespace-sync oci://ghcr.io/somaz94/charts/k8s-namespace-sync \
-  --version 0.5.0
+  --version 0.6.0
 ```
 
 The chart creates the namespace named by its `namespace` value itself, so do not pass `--namespace` with `--create-namespace` for that namespace; the install would fail with `namespaces "..." already exists`.
@@ -51,7 +51,7 @@ The following table lists the configurable parameters of the k8s-namespace-sync 
 | `nameOverride` | Override the name of the chart | `""` |
 | `fullnameOverride` | Override the full name of the chart | `""` |
 | `image.repository` | Controller image repository | `somaz940/k8s-namespace-sync` |
-| `image.tag` | Controller image tag | `v0.5.0` |
+| `image.tag` | Controller image tag | `v0.6.0` |
 | `image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `imagePullSecrets` | Image pull secrets (controller and CRD cleanup Job) | `[]` |
 | `serviceAccount.create` | Create ServiceAccount | `true` |
