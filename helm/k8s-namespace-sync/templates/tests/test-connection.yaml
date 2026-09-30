@@ -1,3 +1,4 @@
+{{- if .Values.metrics.enabled }}
 apiVersion: v1
 kind: Pod
 metadata:
@@ -7,9 +8,29 @@ metadata:
   annotations:
     "helm.sh/hook": test
 spec:
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    seccompProfile:
+      type: RuntimeDefault
   containers:
-    - name: wget
-      image: busybox
-      command: ['wget']
-      args: ['{{ include "k8s-namespace-sync.fullname" . }}:{{ .Values.service.port }}']
+    # A TCP check, since the metrics endpoint only answers authenticated HTTPS.
+    - name: nc
+      image: busybox:1.38.0
+      command: ['nc']
+      args: ['-z', '-w', '5', '{{ include "k8s-namespace-sync.metricsServiceName" . }}.{{ .Values.namespace }}.svc', '{{ .Values.metrics.service.port }}']
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
   restartPolicy: Never
+{{- end }}

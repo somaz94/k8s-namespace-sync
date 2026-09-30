@@ -65,8 +65,7 @@ The following table lists the configurable parameters of the k8s-namespace-sync 
 | `controller.logging.encoder` | Log encoder | `console` |
 | `controller.logging.stacktraceLevel` | Stack trace log level | `error` |
 | `controller.env` | Extra environment variables for the controller container | `[]` |
-| `service.type` | Service type | `ClusterIP` |
-| `service.port` | Service port | `8443` |
+| `service.type` | Metrics service type | `ClusterIP` |
 | `probes.liveness.initialDelaySeconds` | Liveness probe initial delay | `15` |
 | `probes.liveness.periodSeconds` | Liveness probe period | `20` |
 | `probes.liveness.port` | Liveness probe port | `8081` |
@@ -78,7 +77,7 @@ The following table lists the configurable parameters of the k8s-namespace-sync 
 | `rbac.create` | Create RBAC resources | `true` |
 | `crds.create` | With `crds.remove`, enables the pre-delete Job that deletes the CRD. The CRD itself always installs from `crds/` (skip with `--skip-crds`) | `true` |
 | `crds.remove` | Delete the CRD, and every NamespaceSync with it, on uninstall (requires `crds.create`) | `true` |
-| `metrics.enabled` | Create the metrics Service (the manager serves `/metrics` either way) | `true` |
+| `metrics.enabled` | Create the metrics Service (the manager serves `/metrics` either way); `helm test` checks this Service | `true` |
 | `metrics.service.port` | Metrics service port | `8443` |
 | `metrics.service.annotations` | Metrics service annotations | `{}` |
 | `nodeSelector` | Node selector | `{}` |

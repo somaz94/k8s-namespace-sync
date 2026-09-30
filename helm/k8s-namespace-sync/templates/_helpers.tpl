@@ -51,6 +51,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+Name of the metrics Service, shared by the Service and the test hook.
+*/}}
+{{- define "k8s-namespace-sync.metricsServiceName" -}}
+{{- printf "%s-metrics" (include "k8s-namespace-sync.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
 Create the name of the service account to use
 */}}
 {{- define "k8s-namespace-sync.serviceAccountName" -}}

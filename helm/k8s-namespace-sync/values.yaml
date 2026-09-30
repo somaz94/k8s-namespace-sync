@@ -58,9 +58,9 @@ controller:
   #   - name: RECONCILE_INTERVAL
   #     value: "10m"
 
+# Type of the metrics Service (rendered only when metrics.enabled is true).
 service:
   type: ClusterIP
-  port: 8443
 
 probes:
   liveness:
