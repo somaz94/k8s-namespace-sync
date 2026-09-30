@@ -9,7 +9,14 @@ This Helm chart installs K8s Namespace Sync Controller on your Kubernetes cluste
 
 ## Installing the Chart
 
-Add the Helm repository:
+Install from the OCI registry (Helm 3.8+):
+```bash
+helm install k8s-namespace-sync oci://ghcr.io/somaz94/charts/k8s-namespace-sync \
+  --version 0.4.0 \
+  --namespace k8s-namespace-sync-system --create-namespace
+```
+
+Or add the classic Helm repository:
 ```bash
 helm repo add k8s-namespace-sync https://somaz94.github.io/k8s-namespace-sync/helm-repo
 helm repo update
@@ -69,9 +76,9 @@ The following table lists the configurable parameters of the k8s-namespace-sync 
 | `probes.readiness.port` | Readiness probe port | `8081` |
 | `probes.readiness.path` | Readiness probe path | `/readyz` |
 | `rbac.create` | Create RBAC resources | `true` |
-| `crds.create` | Create CRDs | `true` |
-| `crds.remove` | Remove CRDs on uninstall | `true` |
-| `metrics.enabled` | Enable metrics | `true` |
+| `crds.create` | With `crds.remove`, enables the pre-delete Job that deletes the CRD. The CRD itself always installs from `crds/` (skip with `--skip-crds`) | `true` |
+| `crds.remove` | Delete the CRD, and every NamespaceSync with it, on uninstall (requires `crds.create`) | `true` |
+| `metrics.enabled` | Create the metrics Service (the manager serves `/metrics` either way) | `true` |
 | `metrics.service.port` | Metrics service port | `8443` |
 | `metrics.service.annotations` | Metrics service annotations | `{}` |
 | `nodeSelector` | Node selector | `{}` |

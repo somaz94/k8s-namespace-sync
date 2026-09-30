@@ -13,7 +13,7 @@ When releasing a new version, update the following files:
 | `helm/k8s-namespace-sync/Chart.yaml` | `appVersion` (app version, with `v` prefix) | `"v0.4.0"` |
 | `helm/k8s-namespace-sync/values.yaml` | `image.tag` | `v0.4.0` |
 | `config/manager/kustomization.yaml` | `newTag` | `v0.4.0` |
-| `release/install.yaml` | `image:` (rebuild with `make build-installer`) | `v0.4.0` |
+| `dist/install.yaml` | `image:` (rebuild with `make build-installer`) | `v0.4.0` |
 
 <br/>
 

@@ -91,7 +91,12 @@ kubectl logs -n k8s-namespace-sync-system deployment/k8s-namespace-sync-controll
 
 ### Synced resources not cleaned up after CR deletion
 
+Cleanup deletes only copies that carry the controller's `namespacesync.nsync.dev/source-*` annotations. An object with the same name that the controller never synced is left in place on purpose.
+
 ```bash
+# Check whether the object is a synced copy
+kubectl get secret <name> -n <target-ns> -o jsonpath='{.metadata.annotations}'
+
 # Check if controller is running
 kubectl get pods -n k8s-namespace-sync-system
 
@@ -108,6 +113,7 @@ kubectl delete secret <name> -n <target-ns>
 - Patterns use glob matching (e.g., `*2` matches `test-configmap2`)
 - Exclude takes precedence over include
 - Namespace exclude and resource filter are independent
+- A pattern that is not a valid glob (e.g., `[abc`) fails validation; look for a `ValidationFailed` event on the NamespaceSync
 
 ```bash
 # Verify filter configuration

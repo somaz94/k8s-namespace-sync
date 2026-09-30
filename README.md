@@ -285,12 +285,12 @@ spec:
   resourceFilters:
     configMaps:
       # include:
-      #   - "test-configmap*"    # All ConfigMaps starting with test-configmap
+      #   - "test-configmap*"    # Listed ConfigMaps starting with test-configmap
       exclude:
         - "*2"            # Exclude ConfigMaps ending with 2
     secrets:
       # include:
-      #   - "test-secret*"   # All Secrets starting with test-secret
+      #   - "test-secret*"   # Listed Secrets starting with test-secret
       exclude:
         - "*2"            # Exclude Secrets ending with 2
   exclude:
@@ -329,9 +329,11 @@ kubectl delete -f https://raw.githubusercontent.com/somaz94/k8s-namespace-sync/m
 - System namespaces and source namespace are always excluded
 - `exclude` list takes precedence over `targetNamespaces`
 - Changes in source resources are automatically detected and synced in real-time
-- Deleting a resource from the source namespace will remove it from all synced namespaces
+- Deleting a resource from the source namespace removes its synced copies from the target namespaces
 - Labels and annotations from the source resources are preserved in synced resources
 - When the NamespaceSync CR is deleted, all synced resources are automatically cleaned up
+- Deletion only touches copies the controller created, identified by the `namespacesync.nsync.dev/source-namespace` and `namespacesync.nsync.dev/source-name` annotations. A same-named object it never synced, such as one a resource filter excluded, is left in place. Syncing still overwrites a same-named object, which from then on counts as a synced copy
+- Changing `spec.sourceNamespace` leaves the copies synced from the old source in place, since they no longer match the new source; delete them by hand if they are no longer needed
 - Finalizer ensures proper cleanup of synced resources before CR deletion
 - The controller performs periodic reconciliation (default: every 5 minutes) to catch any external drift, ensuring resources remain in sync even if events are missed. The interval is configurable via the `RECONCILE_INTERVAL` environment variable (e.g., `RECONCILE_INTERVAL=10m`)
 
@@ -397,7 +399,7 @@ The controller exposes the following Prometheus metrics:
 |--------|------|--------|-------------|
 | `namespacesync_sync_success_total` | Counter | `namespace`, `resource_type` | Number of successful resource synchronizations |
 | `namespacesync_sync_failure_total` | Counter | `namespace`, `resource_type` | Number of failed resource synchronizations |
-| `namespacesync_cleanup_success_total` | Counter | `namespace`, `resource_type` | Number of successful resource cleanups |
+| `namespacesync_cleanup_success_total` | Counter | `namespace`, `resource_type` | Number of synced copies deleted during cleanup |
 | `namespacesync_cleanup_failure_total` | Counter | `namespace`, `resource_type` | Number of failed resource cleanups |
 | `namespacesync_sync_duration_seconds` | Histogram | `namespace`, `resource_type` | Duration of sync operations in seconds |
 | `namespacesync_managed_resources` | Gauge | `namespace`, `resource_type` | Number of resources being managed by NamespaceSync |
@@ -412,6 +414,7 @@ The controller exposes the following Prometheus metrics:
 - If both include and exclude patterns are specified, exclude takes precedence
 - Patterns are matched against resource names
 - Can be combined with namespace targeting and exclusion
+- A pattern that is not a valid glob (for example `[abc`) fails validation: the controller emits a `ValidationFailed` event and sets the Ready condition to `SyncFailed` instead of syncing
 
 <br/>
 
@@ -446,6 +449,8 @@ The CRD enforces the following rules at admission time. They are part of the CRD
 | At least one of `spec.secretName` or `spec.configMapName` must be non-empty | `at least one secret or configmap must be specified` |
 
 The controller keeps the same checks as a reconcile-time backstop, so a resource created before these rules existed still reports the error in its status instead of syncing nothing silently.
+
+The controller also rejects resource filter patterns that are not valid globs. That check has no admission-time equivalent, so such a resource is accepted by `kubectl apply` and then reports the error in its status.
 
 Note that listing the source namespace in `spec.targetNamespaces`, or a namespace in both `spec.targetNamespaces` and `spec.exclude`, is **not** an error — the source namespace is always skipped and `exclude` is evaluated first.
 
