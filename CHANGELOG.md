@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.5.0](https://github.com/somaz94/k8s-namespace-sync/compare/v0.4.2...v0.5.0) (2026-09-30)
+
+### Features
+
+- **crd:** make sourceNamespace required and immutable ([6f3e2be](https://github.com/somaz94/k8s-namespace-sync/commit/6f3e2beb4c18b73c4da97e64d1b03418906ae3b3))
+- report InvalidSpec when the spec fails validation ([c4bd1d0](https://github.com/somaz94/k8s-namespace-sync/commit/c4bd1d0cde91a729dca75a1a5db8b786e1fabc8d))
+
+### Bug Fixes
+
+- **helm:** let the CRD cleanup hook finish and pin its image ([2e8e1ac](https://github.com/somaz94/k8s-namespace-sync/commit/2e8e1ac31fd0574c40d713138b6078d2d000bc65))
+- honour the --zap-encoder and --zap-time-encoding flags ([d2d60ca](https://github.com/somaz94/k8s-namespace-sync/commit/d2d60ca205cbe59f7c3258c9f7ce57b93357d769))
+- keep kubectl.kubernetes.io metadata out of synced copies ([d44723c](https://github.com/somaz94/k8s-namespace-sync/commit/d44723c449426079c8dd6cce811b27a0fe6e1aaa))
+- stop NamespaceSyncs from overwriting each other's objects ([72f4f5a](https://github.com/somaz94/k8s-namespace-sync/commit/72f4f5acc44cc5089e8b75b336121bb0dbe657d8))
+
+### Documentation
+
+- add <br/> spacers between heading sections ([cbae3c8](https://github.com/somaz94/k8s-namespace-sync/commit/cbae3c82bb81213a7b36360c89233066add2eb78))
+- document sync conflicts, InvalidSpec, immutability and upgrades ([6368ea1](https://github.com/somaz94/k8s-namespace-sync/commit/6368ea191fb22b16c7f27bcee922d8c264c83cd0))
+
+### Tests
+
+- cover the uninstall hook and fix racy greps in test-helm.sh ([f2205b8](https://github.com/somaz94/k8s-namespace-sync/commit/f2205b851dc9fecd84a8423a6106b5a54b70cd46))
+
+### Chores
+
+- **release:** bump version to v0.5.0 ([423eadd](https://github.com/somaz94/k8s-namespace-sync/commit/423eadd632f6781b466bafdbde3dc239107bd032))
+
+### Contributors
+
+- somaz
+
+<br/>
+
 ## [v0.4.2](https://github.com/somaz94/k8s-namespace-sync/compare/v0.4.1...v0.4.2) (2026-09-30)
 
 ### Bug Fixes
