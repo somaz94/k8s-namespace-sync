@@ -10,6 +10,7 @@ Guide for building, testing, and contributing to k8s-namespace-sync.
 - [Project Structure](#project-structure)
 - [Build](#build)
 - [Testing](#testing)
+- [Demo](#demo)
 - [Docker](#docker)
 - [Workflow](#workflow)
 - [CI/CD Workflows](#cicd-workflows)
@@ -108,6 +109,17 @@ make lint                 # Run golangci-lint
 ### Test Coverage
 
 Current coverage: **50.1%**
+
+<br/>
+
+## Demo
+
+The GIF in the README replays output saved from a real run, because the recording container has no cluster. `capture.sh` creates a kind cluster named `nsync-demo` with its own kubeconfig, installs the chart in `helm/k8s-namespace-sync` with its published image, applies the namespaces, the Secret and the NamespaceSync in `examples/demo/`, and deletes the cluster on exit. When the output changes, regenerate both:
+
+```bash
+examples/demo/capture.sh
+docker run --rm -v "$PWD:/vhs" ghcr.io/charmbracelet/vhs examples/demo/demo.tape
+```
 
 <br/>
 

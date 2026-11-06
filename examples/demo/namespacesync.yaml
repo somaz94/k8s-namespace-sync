@@ -1,0 +1,11 @@
+# Copies db-endpoint from platform into every other namespace, now and later.
+apiVersion: sync.nsync.dev/v1
+kind: NamespaceSync
+metadata:
+  name: db-endpoint
+spec:
+  sourceNamespace: platform
+  secretName:
+    - db-endpoint
+  exclude:
+    - local-path-storage

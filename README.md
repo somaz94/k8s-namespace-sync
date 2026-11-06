@@ -12,6 +12,8 @@
 
 K8s Namespace Sync is a Kubernetes controller that automatically synchronizes Secrets and ConfigMaps across multiple namespaces within a Kubernetes cluster.
 
+![A NamespaceSync copies a Secret from platform into team-a and team-b, and into team-c as soon as that namespace is created](examples/demo/demo.gif)
+
 <br/>
 
 ## Features

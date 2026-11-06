@@ -1,0 +1,26 @@
+# Demo source: namespaces and the Secret to share. Example values only.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-a
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-b
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-endpoint
+  namespace: platform
+  labels:
+    app: billing
+stringData:
+  host: db.example.com
+  port: "5432"
