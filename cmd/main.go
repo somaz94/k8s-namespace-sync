@@ -123,7 +123,7 @@ func main() {
 		HealthProbeBindAddress:        probeAddr,
 		LeaderElection:                enableLeaderElection,
 		LeaderElectionID:              "47c2149c.nsync.dev",
-		LeaderElectionNamespace:       "k8s-namespace-sync-system",
+		LeaderElectionNamespace:       controllerNamespace(),
 		LeaderElectionReleaseOnCancel: true,
 		Logger:                        ctrl.Log.WithName("manager"),
 	})
@@ -147,9 +147,10 @@ func main() {
 		"scheme", scheme.Name())
 
 	if err = (&controller.NamespaceSyncReconciler{
-		Client:    mgr.GetClient(),
-		Scheme:    mgr.GetScheme(),
-		APIReader: mgr.GetAPIReader(),
+		Client:              mgr.GetClient(),
+		Scheme:              mgr.GetScheme(),
+		APIReader:           mgr.GetAPIReader(),
+		ControllerNamespace: controllerNamespace(),
 		// SA1019: GetEventRecorder returns the events.k8s.io/v1 recorder, whose
 		// Eventf signature differs. Migrating the event surface is tracked separately.
 		//nolint:staticcheck
@@ -200,4 +201,13 @@ func zapOptions() zap.Options {
 			ec.EncodeCaller = zapcore.ShortCallerEncoder
 		}},
 	}
+}
+
+// controllerNamespace reads the pod's namespace from the downward API, so the
+// chart can be installed into any namespace.
+func controllerNamespace() string {
+	if ns := os.Getenv("POD_NAMESPACE"); ns != "" {
+		return ns
+	}
+	return controller.DefaultControllerNamespace
 }

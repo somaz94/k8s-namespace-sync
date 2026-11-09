@@ -65,7 +65,20 @@ func (r *NamespaceSyncReconciler) isSystemNamespace(namespace string) bool {
 		"kube-public",
 		"kube-node-lease",
 		"default",
-		"k8s-namespace-sync-system",
+		r.controllerNamespace(),
 	}
 	return contains(systemNamespaces, namespace)
+}
+
+// DefaultControllerNamespace is where the manifests install the controller
+// when POD_NAMESPACE does not say otherwise.
+const DefaultControllerNamespace = "k8s-namespace-sync-system"
+
+// controllerNamespace is the namespace the controller runs in; it is never a
+// sync target.
+func (r *NamespaceSyncReconciler) controllerNamespace() string {
+	if r.ControllerNamespace != "" {
+		return r.ControllerNamespace
+	}
+	return DefaultControllerNamespace
 }

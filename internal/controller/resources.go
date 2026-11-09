@@ -39,6 +39,18 @@ func (r *NamespaceSyncReconciler) handleDeletionAndStatus(ctx context.Context, n
 			}
 			return ctrl.Result{}, err
 		}
+		// The cleanup above walks the current spec; copies an earlier spec made are found by annotation.
+		peers, err := r.listPeers(ctx, namespacesync)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if errs := r.pruneOrphanedCopies(ctx, namespacesync, peers, true); len(errs) > 0 {
+			err := errors.Join(errs...)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(namespacesync, corev1.EventTypeWarning, "CleanupFailed", "Failed to clean up synced resources: %s", oneLine(err))
+			}
+			return ctrl.Result{}, err
+		}
 
 		if r.Recorder != nil {
 			r.Recorder.Event(namespacesync, corev1.EventTypeNormal, "CleanupComplete", "Successfully cleaned up synced resources")

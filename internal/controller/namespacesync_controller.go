@@ -60,6 +60,9 @@ type NamespaceSyncReconciler struct {
 	Recorder record.EventRecorder
 	// APIReader bypasses the informer cache so a delete never trusts a stale cache miss.
 	APIReader client.Reader
+	// ControllerNamespace is the namespace the controller runs in, excluded
+	// from every sync; empty means DefaultControllerNamespace.
+	ControllerNamespace string
 }
 
 func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -172,6 +175,11 @@ func (r *NamespaceSyncReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if len(syncedNamespaces) > 0 {
 			r.Recorder.Eventf(namespacesync, corev1.EventTypeNormal, "SyncComplete", "Successfully synced resources to %d namespaces", len(syncedNamespaces))
 		}
+	}
+
+	if pruneErrs := r.pruneOrphanedCopies(ctx, namespacesync, peers, false); len(pruneErrs) > 0 && r.Recorder != nil {
+		r.Recorder.Eventf(namespacesync, corev1.EventTypeWarning, "PruneFailed",
+			"Failed to delete %d copies the spec no longer asks for: %s", len(pruneErrs), oneLine(errors.Join(pruneErrs...)))
 	}
 
 	if err := r.updateStatus(ctx, namespacesync, syncedNamespaces, failedNamespaces, conflicted); err != nil {
