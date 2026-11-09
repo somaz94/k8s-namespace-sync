@@ -33,8 +33,7 @@ K8s Namespace Sync is a Kubernetes controller that automatically synchronizes Se
 - Support for manually excluding specific namespaces
 - Prometheus metrics support
 - Synchronization status monitoring
-- Resource filtering support with glob pattern matching
-- Selective resource synchronization based on name patterns
+- Resource filtering with glob patterns that narrow the `secretName` / `configMapName` lists
 
 <br/>
 
@@ -44,7 +43,8 @@ The controller:
 1. Watches for changes in the source namespace's Secrets and ConfigMaps
 2. Automatically syncs changes to all target namespaces
 3. Maintains consistency by cleaning up resources when source is deleted
-4. Uses finalizers to ensure proper cleanup during deletion
+4. Deletes copies the spec no longer asks for (a name dropped from the list, a namespace newly excluded or left out of `targetNamespaces`, a tightened filter), unless another NamespaceSync still syncs them
+5. Uses finalizers to ensure proper cleanup during deletion
 
 <br/>
 
@@ -434,6 +434,7 @@ The controller exposes the following Prometheus metrics:
 
 ### Resource Filtering
 - Supports both include and exclude patterns for ConfigMaps and Secrets
+- Patterns narrow the names already listed in `secretName` / `configMapName`; they do not select other objects from the source namespace
 - Uses glob pattern matching (e.g., "*" for any characters)
 - Include patterns specify which resources to sync
 - Exclude patterns specify which resources to skip
@@ -489,7 +490,8 @@ The following namespaces are automatically excluded from synchronization:
 - kube-system
 - kube-public
 - kube-node-lease
-- k8s-namespace-sync-system
+- default
+- the namespace the controller runs in (`k8s-namespace-sync-system` unless installed elsewhere)
 
 Additionally, you can manually exclude specific namespaces using the `exclude` field in the NamespaceSync CR.
 
@@ -501,7 +503,7 @@ Common issues and solutions:
 
 1. **Resources not syncing:**
    - Check if namespace is in exclude list
-   - Verify controller logs: `kubectl logs -n namespacesync-system -l control-plane=controller-manager`
+   - Verify controller logs: `kubectl logs -n k8s-namespace-sync-system -l control-plane=controller-manager`
    - Check NamespaceSync status: `kubectl get namespacesync <name> -o yaml`
 
 2. **Permission issues:**
