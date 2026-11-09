@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.6.1](https://github.com/somaz94/k8s-namespace-sync/compare/v0.6.0...v0.6.1) (2026-11-09)
+
+### Bug Fixes
+
+- delete copies the spec no longer asks for and read the controller namespace from POD_NAMESPACE ([57310b3](https://github.com/somaz94/k8s-namespace-sync/commit/57310b339c0947972ac631f65c90c1de70b37cd7))
+
+### Documentation
+
+- correct excluded namespaces, filter scope and troubleshooting namespace ([f73956b](https://github.com/somaz94/k8s-namespace-sync/commit/f73956b9684174c6af10980861f8590a59f17630))
+- add related projects section to README ([7c06673](https://github.com/somaz94/k8s-namespace-sync/commit/7c06673f6e4ee3336a1c18ac8f10ad95ec7c02e9))
+- add a demo GIF of a Secret synced into new namespaces ([aef5b1a](https://github.com/somaz94/k8s-namespace-sync/commit/aef5b1ab29901fcbafe37ddfd93caf7e3a5e2754))
+
+### Continuous Integration
+
+- deduplicate identical commit lines in release notes ([4725c03](https://github.com/somaz94/k8s-namespace-sync/commit/4725c03d65369ae20d39b600cfedffcc71fe68e7))
+
+### Chores
+
+- **release:** bump version to v0.6.1 ([edd1c0d](https://github.com/somaz94/k8s-namespace-sync/commit/edd1c0d80a46894cfcbe9bec3cd56b10d4fdb522))
+- **deps:** bump github.com/onsi/ginkgo/v2 (#69) ([#69](https://github.com/somaz94/k8s-namespace-sync/pull/69)) ([82d28ea](https://github.com/somaz94/k8s-namespace-sync/commit/82d28ea940151f6d43d0f054eeb9e2168773692b))
+- **deps:** bump the go-minor group with 3 updates (#68) ([#68](https://github.com/somaz94/k8s-namespace-sync/pull/68)) ([d1519c0](https://github.com/somaz94/k8s-namespace-sync/commit/d1519c053c681cf6a59ba9a3f78a80ef6ae3d6c4))
+- **deps:** bump github.com/onsi/ginkgo/v2 (#67) ([#67](https://github.com/somaz94/k8s-namespace-sync/pull/67)) ([051e3c9](https://github.com/somaz94/k8s-namespace-sync/commit/051e3c9bbbbbda06cae7a9a6491f7dc75289222e))
+- **deps:** bump github.com/prometheus/client_golang (#66) ([#66](https://github.com/somaz94/k8s-namespace-sync/pull/66)) ([b15c6b7](https://github.com/somaz94/k8s-namespace-sync/commit/b15c6b7e206d8ecc1995d2179abdfd2e308dc586))
+- base create-pr.sh on origin/main ([05fb851](https://github.com/somaz94/k8s-namespace-sync/commit/05fb8517a02ef71ee61b1cd0a5a3b5d492c9aa17))
+- classify scoped and breaking commits in create-pr.sh ([bfb0916](https://github.com/somaz94/k8s-namespace-sync/commit/bfb09164c4659eaeded0c1a67fb6b36ce3390c23))
+- drop boilerplate comments from CODEOWNERS ([3b6e8ca](https://github.com/somaz94/k8s-namespace-sync/commit/3b6e8cac951108f4fa81683c954ed9792154ddc2))
+- **deps:** bump the go-minor group with 2 updates (#65) ([#65](https://github.com/somaz94/k8s-namespace-sync/pull/65)) ([edcb86f](https://github.com/somaz94/k8s-namespace-sync/commit/edcb86f3dc273758cb3a2513fefd6b6292068f83))
+
+### Contributors
+
+- somaz
+
+<br/>
+
 ## [v0.6.0](https://github.com/somaz94/k8s-namespace-sync/compare/v0.5.0...v0.6.0) (2026-09-30)
 
 ### Features
